@@ -1,5 +1,5 @@
 [package]
-name = "Editor"
+name = "afraid_of_dark"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 bevy_ecs = "0.12.1"
 glfw = "0.54.0"
+term = "0.7.0"
