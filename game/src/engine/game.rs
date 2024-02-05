@@ -1,12 +1,16 @@
 pub mod runtime {
     use crate::engine::{
-        ecs::{config::EcsLateUpdateSchedule, config::EcsUpdateSchedule, time::Time},
+        ecs::{
+            config::EcsLateUpdateSchedule,
+            config::{EcsFixedUpdateSchedule, EcsUpdateSchedule},
+            time::Time,
+        },
         logging::{consts, logs::Logger, logs_traits::LoggerBase},
         rendering::renderer::Renderer,
         utils::app_settings::ApplicationSettings,
     };
     use bevy_ecs::prelude::*;
-    use std::rc::Rc;
+    use std::{rc::Rc, time::Duration};
 
     pub struct App {
         _name: String,
@@ -45,7 +49,7 @@ pub mod runtime {
             }
         }
 
-        fn warm(&mut self) {
+        pub fn warm(&mut self) -> &mut Self {
             let s: &ApplicationSettings = &self.app_settings;
             let renderer: Renderer = Renderer::init_with_glfw(&s.window, self.logs.clone());
             self.renderer = Option::from(renderer);
@@ -55,9 +59,11 @@ pub mod runtime {
             let world = self.ecs_world.as_mut().unwrap();
 
             let update_schedule = Schedule::new(EcsUpdateSchedule);
+            let fixed_update_schedule = Schedule::new(EcsFixedUpdateSchedule);
             let late_update_schedule = Schedule::new(EcsLateUpdateSchedule);
 
             world.add_schedule(update_schedule);
+            world.add_schedule(fixed_update_schedule);
             world.add_schedule(late_update_schedule);
 
             // Resources
@@ -67,34 +73,70 @@ pub mod runtime {
                 delta_time: 0.02f32,
                 fixed_delta_time: 0.02f32,
             });
+
+            self
         }
 
         pub fn run(&mut self) {
-            self.warm();
+            //self.warm();
 
             let renderer: &mut Renderer;
             let world: &mut World;
 
-            if let Some(rdr) = self.renderer.as_mut() { 
+            if let Some(rdr) = self.renderer.as_mut() {
                 renderer = rdr;
-            } else { 
-                self.logs.error(consts::ENGINE_CATEGORY,"Renderer engine system could not be loaded.",);
+            } else {
+                self.logs.error(
+                    consts::ENGINE_CATEGORY,
+                    "Renderer engine system could not be loaded.",
+                );
                 panic!();
             }
 
-            if let Some(ecs) = self.ecs_world.as_mut() { 
+            if let Some(ecs) = self.ecs_world.as_mut() {
                 world = ecs;
             } else {
-                self.logs.error(consts::ENGINE_CATEGORY, "ECS system not initialized");
+                self.logs
+                    .error(consts::ENGINE_CATEGORY, "ECS system not initialized");
                 panic!();
             }
+
+            let framerate = self.app_settings.target_frame_rate;
+            let mut time_point = std::time::Instant::now();
+            let mut accumulated_time = 0.0f32;
+            let fixed_delta_time = world.resource::<Time>().fixed_delta_time;
 
             // Game loop [WIP]
             while !renderer.window.should_close() {
                 renderer.poll_events();
 
+                let dt = std::time::Instant::elapsed(&time_point);
+                time_point = std::time::Instant::now();
+
+                let delta = dt.as_secs_f32();
+                let fixed_delta = fixed_delta_time;
+
+                let mut time_world = world.resource_mut::<Time>();
+                time_world.delta_time = delta;
+                accumulated_time += delta;
+
+                // Update game logic once
                 world.run_schedule(EcsUpdateSchedule);
+
+                // Update physic&fixed at same time step.
+                while accumulated_time >= fixed_delta {
+                    accumulated_time -= fixed_delta;
+                    world.run_schedule(EcsFixedUpdateSchedule);
+                }
+
+                // Late update for UI.
                 world.run_schedule(EcsLateUpdateSchedule);
+
+                // Render and passe overflow time
+                renderer.render(accumulated_time);
+
+                let sleep_time: f32 = f32::max((1.0f32 / framerate) - delta, 0f32);
+                std::thread::sleep(Duration::from_secs_f32(sleep_time));
             }
         }
     }

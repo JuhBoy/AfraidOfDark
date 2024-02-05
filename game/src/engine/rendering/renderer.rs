@@ -1,5 +1,11 @@
-use crate::{engine::{logging::{consts, logs_traits::LoggerBase}, utils::app_settings::WindowSettings}, WindowMode};
-use glfw::{Context, Glfw, GlfwReceiver, PWindow, WindowEvent, Key, Action};
+use crate::{
+    engine::{
+        logging::{consts, logs_traits::LoggerBase},
+        utils::app_settings::WindowSettings,
+    },
+    WindowMode,
+};
+use glfw::{Action, Context, Glfw, GlfwReceiver, Key, PWindow, WindowEvent};
 use std::rc::Rc;
 extern crate glfw;
 
@@ -7,7 +13,7 @@ pub struct Renderer {
     pub instance: Glfw,
     pub window: PWindow,
     pub events: GlfwReceiver<(f64, WindowEvent)>,
-    pub log: Rc<dyn LoggerBase>
+    pub log: Rc<dyn LoggerBase>,
 }
 
 impl Renderer {
@@ -33,7 +39,7 @@ impl Renderer {
             instance,
             window,
             events,
-            log
+            log,
         }
     }
 
@@ -42,7 +48,9 @@ impl Renderer {
 
         for (_, event) in glfw::flush_messages(&self.events) {
             match event {
-                WindowEvent::Key(Key::Escape, _, Action::Press, _) => self.window.set_should_close(true),
+                WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
+                    self.window.set_should_close(true)
+                }
                 _ => match event {
                     WindowEvent::Key(k, _a, _b, _c) => {
                         let name: String;
@@ -53,11 +61,18 @@ impl Renderer {
                             name = String::from("unknow touch");
                         }
 
-                        self.log.info(consts::ENGINE_RENDERING, &format!("Key not handled by engine {}", name));
+                        self.log.info(
+                            consts::ENGINE_RENDERING,
+                            &format!("Key not handled by engine {}", name),
+                        );
                     }
                     _ => {}
                 },
             }
         }
+    }
+
+    pub fn render(&mut self, delta_time: f32) {
+        // Not implemented yet.
     }
 }
