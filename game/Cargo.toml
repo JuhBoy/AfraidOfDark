@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 bevy_ecs = "0.12.1"
+gl = "0.14.0"
 glfw = "0.54.0"
 term = "0.7.0"

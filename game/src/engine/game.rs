@@ -51,7 +51,10 @@ pub mod runtime {
 
         pub fn warm(&mut self) -> &mut Self {
             let s: &ApplicationSettings = &self.app_settings;
-            let renderer: Renderer = Renderer::init_with_glfw(&s.window, self.logs.clone());
+
+            // Rendering
+            let mut renderer: Renderer = Renderer::init_with_glfw(&s.window, self.logs.clone());
+            renderer.warm();
             self.renderer = Option::from(renderer);
 
             // ECS -- Schedulers & world

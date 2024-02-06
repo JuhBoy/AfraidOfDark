@@ -1,14 +1,26 @@
+use bevy_ecs::entity::Entity;
 use bevy_ecs::schedule::Schedules;
-use bevy_ecs::system::Res;
+use bevy_ecs::system::{Query, Res};
+use engine::ecs::components::{Rotation, Scale, Transform};
 use engine::ecs::config::{EcsFixedUpdateSchedule, EcsLateUpdateSchedule, EcsUpdateSchedule};
 use engine::ecs::time::Time;
 use engine::game::runtime::App;
 use engine::utils::app_settings::{ApplicationSettings, WindowMode, WindowSettings};
 
+use crate::engine::ecs::components::Position;
+
 pub mod engine;
 
-pub fn update_system(time: Res<Time>) {
-    println!("Update: {}", &time.delta_time);
+pub fn update_system(time: Res<Time>, mut query: Query<(Entity, &mut Transform)>) {
+    for (entity, mut transform) in query.iter_mut() {
+        let x: &f32 = &transform.position.x;
+        transform.position = Position {
+            x: x + 12f32 * &time.delta_time,
+            y: transform.position.y,
+            z: transform.position.z,
+        };
+        println!("Entity({:?}) new position is: {:?}", &entity, &transform);
+    }
 }
 
 pub fn fixed_update_system(time: Res<Time>) {
@@ -48,6 +60,12 @@ fn main() {
             .get_mut(EcsLateUpdateSchedule)
             .unwrap()
             .add_systems(late_update_system);
+
+        let _entity = world.spawn(Transform {
+            position: Position::default(),
+            rotation: Rotation::default(),
+            scale: Scale::default(),
+        });
     }
 
     app.run();
