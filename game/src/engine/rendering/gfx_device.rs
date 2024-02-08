@@ -1,27 +1,31 @@
-use std::fs::File;
-use std::io::Read;
 use std::rc::Rc;
-use crate::engine::rendering::shaders::{ShaderInfo, ShaderType};
+use crate::engine::rendering::shaders::ShaderType;
+
+use super::{renderer::RenderCmdHd, shaders::Material};
 
 pub struct GfxDevice {
     instance: Rc<dyn GfxApiDevice>,
+    cmd_ids: u128,
 }
 
 pub struct ShaderModule {
     pub self_handle: u32,
     pub vertex_handle: Option<u32>, // they can be deleted already
     pub fragment_handle: Option<u32>, // they can be deleted already
+    pub material: Material
 }
 
 pub struct BufferModule {
-    pub module_handle: u32,
+    pub handle: u32,
     pub buffer_handles: Option<Vec<u32>>,
     pub buffer_attributes: Option<Vec<f32>>,
-    pub vertices: Option<Vec<Vec<f32>>>
+    pub vertices: Option<Vec<Vec<f32>>>,
+    pub vertices_count: Option<Vec<u32>>
 }
 
 pub struct RenderCommand {
     pub initialized: bool,
+    pub handle: RenderCmdHd,
     pub shader_module: ShaderModule,
     pub buffer_module: BufferModule
 }
@@ -55,19 +59,13 @@ pub trait GfxApiDevice {
 impl GfxDevice {
     pub fn new(device_impl: Rc<dyn GfxApiDevice>) -> Self {
         Self {
-            instance: device_impl
+            instance: device_impl,
+            cmd_ids: 0
         }
     }
 
-    pub fn shader_from_file(&self, shader_info: &ShaderInfo) -> Result<u32, String> {
-        return match File::open(&shader_info.file_path).as_mut() {
-            Ok(file) => {
-                let mut file_content: String = String::new();
-                file.read_to_string(&mut file_content).expect("Failed to load shader");
-                Ok(self.instance.alloc_shader(file_content, shader_info.shader_type))
-            }
-            Err(_) => Err(String::from("Failed to load shader content"))
-        }
+    pub fn alloc_shader(&self, source: String, s_type: ShaderType) -> u32 { 
+        self.instance.alloc_shader(source, s_type)
     }
 
     pub fn new_shader_module(&self, vertex: u32, frag: u32) -> ShaderModule {
@@ -96,8 +94,12 @@ impl GfxDevice {
     // ======================
     // Drawing
     // ======================
-    pub fn build_command(&self, shad_mod: ShaderModule, buff_mod: BufferModule) -> RenderCommand {
+    pub fn build_command(&mut self, shad_mod: ShaderModule, buff_mod: BufferModule) -> RenderCommand {
+        let id = self.cmd_ids;
+        self.cmd_ids += 1;
+
         RenderCommand {
+            handle: id,
             initialized: true,
             shader_module: shad_mod,
             buffer_module: buff_mod
@@ -107,6 +109,7 @@ impl GfxDevice {
     pub fn draw_command(&self, command: &RenderCommand) {
         self.instance.draw_command(command)
     }
+
     pub fn clear(&self) {
         self.instance.clear_color();
         self.instance.clear_buffers();

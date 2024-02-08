@@ -1,34 +1,47 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::schedule::Schedules;
 use bevy_ecs::system::{Query, Res};
-use engine::ecs::components::{Rotation, Scale, Transform};
+use engine::ecs::components::{Rotation, Scale, SpriteRenderer2D, Transform};
 use engine::ecs::config::{EcsFixedUpdateSchedule, EcsLateUpdateSchedule, EcsUpdateSchedule};
 use engine::ecs::time::Time;
-use engine::game::runtime::App;
+use engine::lib::runtime::App;
+
 use engine::utils::app_settings::{ApplicationSettings, WindowMode, WindowSettings};
 
 use crate::engine::ecs::components::Position;
 
 pub mod engine;
 
+#[derive(bevy_ecs::component::Component)]
+pub struct ChangeChecker { 
+    pub accumulated_time: u64,
+}
+
 pub fn update_system(time: Res<Time>, mut query: Query<(Entity, &mut Transform)>) {
-    for (entity, mut transform) in query.iter_mut() {
+    for (_entity, mut transform) in query.iter_mut() {
         let x: &f32 = &transform.position.x;
         transform.position = Position {
             x: x + 12f32 * &time.delta_time,
             y: transform.position.y,
             z: transform.position.z,
         };
-        println!("Entity({:?}) new position is: {:?}", &entity, &transform);
     }
 }
 
-pub fn fixed_update_system(time: Res<Time>) {
-    println!("Fixed update: {}", &time.fixed_delta_time);
+pub fn fixed_update_system(_time: Res<Time>) {
+    // println!("Fixed update: {}", &time.fixed_delta_time);
 }
 
-pub fn late_update_system(time: Res<Time>) {
-    println!("Late update: {}", &time.delta_time);
+pub fn late_update_system(_time: Res<Time>, mut query: Query<(&mut SpriteRenderer2D, &mut ChangeChecker)>) {
+    //println!("Late update: {}", &time.delta_time);
+
+    for (mut sprite, mut checker) in query.iter_mut() { 
+        if checker.accumulated_time > 500 { 
+            sprite.texture = Option::from(String::from("newtexture.tex"));
+            checker.accumulated_time = 0;
+        }
+        checker.accumulated_time += 1;
+    }
 }
 
 fn main() {
@@ -46,7 +59,7 @@ fn main() {
 
     app.warm();
 
-    if let Some(world) = app.ecs_world.as_mut() {
+    if let Some(world) = app.world.as_mut() {
         let mut schedules = world.resource_mut::<Schedules>();
         schedules
             .get_mut(EcsUpdateSchedule)
@@ -61,12 +74,22 @@ fn main() {
             .unwrap()
             .add_systems(late_update_system);
 
-        let _entity = world.spawn(Transform {
-            position: Position::default(),
-            rotation: Rotation::default(),
-            scale: Scale::default(),
-        });
+        let _entity = world.spawn((
+            Transform {
+                position: Position::default(),
+                rotation: Rotation::default(),
+                scale: Scale::default(),
+            },
+            SpriteRenderer2D {
+                texture: Option::from(String::from("toto.texture")),
+                material: None,
+            },
+            ChangeChecker { accumulated_time: 0 }
+        ));
     }
 
-    app.run();
+    match app.run() {
+        Ok(_) => println!("Game closes gracefully!"),
+        Err(reason) => println!("Game closes with error: {}", reason)
+    };
 }

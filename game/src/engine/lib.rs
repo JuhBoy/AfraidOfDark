@@ -1,15 +1,16 @@
 pub mod runtime {
+    use bevy_ecs::schedule::Schedule;
+
     use crate::engine::{
         ecs::{
-            config::EcsLateUpdateSchedule,
-            config::{EcsFixedUpdateSchedule, EcsUpdateSchedule},
-            time::Time,
+            config::{EcsFixedUpdateSchedule, EcsLateUpdateSchedule, EcsUpdateSchedule},
+            systems::{add_sprite_2d_system, changed_sprite_2d_system},
+            time::{RenderingResourcesContainer, Time},
         },
         logging::{consts, logs::Logger, logs_traits::LoggerBase},
         rendering::renderer::Renderer,
-        utils::app_settings::ApplicationSettings,
+        utils::{app_settings::ApplicationSettings, world::World},
     };
-    use bevy_ecs::prelude::*;
     use std::{rc::Rc, time::Duration};
 
     pub struct App {
@@ -21,7 +22,7 @@ pub mod runtime {
         renderer: Option<Renderer>,
 
         // Exposed system
-        pub ecs_world: Option<Box<World>>,
+        pub world: Option<Box<World>>,
     }
 
     impl App {
@@ -33,7 +34,7 @@ pub mod runtime {
                 }),
                 app_settings: ApplicationSettings::default(),
                 renderer: Option::None,
-                ecs_world: Option::None,
+                world: Option::None,
             }
         }
 
@@ -45,7 +46,7 @@ pub mod runtime {
                 }),
                 app_settings: settings,
                 renderer: Option::None,
-                ecs_world: Option::None,
+                world: Option::None,
             }
         }
 
@@ -58,12 +59,15 @@ pub mod runtime {
             self.renderer = Option::from(renderer);
 
             // ECS -- Schedulers & world
-            self.ecs_world = Option::from(Box::new(World::new()));
-            let world = self.ecs_world.as_mut().unwrap();
+            self.world = Option::from(Box::new(World::new()));
+            let world = self.world.as_mut().unwrap();
 
             let update_schedule = Schedule::new(EcsUpdateSchedule);
             let fixed_update_schedule = Schedule::new(EcsFixedUpdateSchedule);
-            let late_update_schedule = Schedule::new(EcsLateUpdateSchedule);
+            let mut late_update_schedule = Schedule::new(EcsLateUpdateSchedule);
+
+            late_update_schedule.add_systems(changed_sprite_2d_system);
+            late_update_schedule.add_systems(add_sprite_2d_system);
 
             world.add_schedule(update_schedule);
             world.add_schedule(fixed_update_schedule);
@@ -77,12 +81,17 @@ pub mod runtime {
                 fixed_delta_time: 0.02f32,
             });
 
+            world.insert_resource::<RenderingResourcesContainer>(RenderingResourcesContainer {
+                frame: 0f64,
+                new_2d_render: Vec::new(),
+                updated_2d_render: Vec::new(),
+                deleted_2d_render: Vec::new(),
+            });
+
             self
         }
 
-        pub fn run(&mut self) {
-            //self.warm();
-
+        pub fn run(&mut self) -> Result<(), &'static str> {
             let renderer: &mut Renderer;
             let world: &mut World;
 
@@ -93,15 +102,15 @@ pub mod runtime {
                     consts::ENGINE_CATEGORY,
                     "Renderer engine system could not be loaded.",
                 );
-                panic!();
+                return Err("Renderer engine system could not be loaded.");
             }
 
-            if let Some(ecs) = self.ecs_world.as_mut() {
-                world = ecs;
+            if let Some(ecs) = self.world.as_mut() {
+                world = ecs.as_mut()
             } else {
                 self.logs
                     .error(consts::ENGINE_CATEGORY, "ECS system not initialized");
-                panic!();
+                return Err("ECS system not initialized");
             }
 
             let framerate = self.app_settings.target_frame_rate;
@@ -135,12 +144,27 @@ pub mod runtime {
                 // Late update for UI.
                 world.run_schedule(EcsLateUpdateSchedule);
 
-                // Render and pass overflow time
+                // Bakes rendering commands
+                world.inject_new_rendering_entities(renderer);
+                world.flush_rendering_command_handles(renderer);
+
+                // Render and forward overflow time
                 renderer.render(accumulated_time);
 
                 let sleep_time: f32 = f32::max((1.0f32 / framerate) - delta, 0f32);
                 std::thread::sleep(Duration::from_secs_f32(sleep_time));
             }
+
+            Ok(())
+        }
+
+        pub fn clear_new_rendering_entity(world: &mut World) {
+            let mut container = world.resource_mut::<RenderingResourcesContainer>();
+
+            if container.new_2d_render.is_empty() {
+                return;
+            }
+            container.new_2d_render.clear();
         }
     }
 }

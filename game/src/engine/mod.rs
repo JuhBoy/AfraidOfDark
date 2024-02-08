@@ -1,4 +1,4 @@
-pub mod game;
+pub mod lib;
 pub mod logging;
 pub mod utils;
 pub mod rendering;
