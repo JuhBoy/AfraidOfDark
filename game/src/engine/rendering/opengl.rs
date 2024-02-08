@@ -11,6 +11,7 @@ pub struct GfxDeviceOpengl;
 
 impl GfxApiDevice for GfxDeviceOpengl {
     fn alloc_shader(&self, source: String, s_type: ShaderType) -> u32 {
+        #[allow(unused)]
         let mut shader_handle = 0u32;
 
         unsafe {
@@ -39,6 +40,7 @@ impl GfxApiDevice for GfxDeviceOpengl {
     }
 
     fn alloc_shader_module(&self, vertex: u32, frag: u32, delete_shader: Option<bool>) -> ShaderModule {
+        #[allow(unused)]
         let mut program_handle = 0u32;
         let delete_shader = delete_shader.unwrap_or(false);
 
@@ -99,7 +101,7 @@ impl GfxApiDevice for GfxDeviceOpengl {
         }
 
         BufferModule {
-            module_handle: vao_handle,
+            handle: vao_handle,
             buffer_handles: Option::from(vbo_handles),
             buffer_attributes: None,
             vertices: if keep_vertices.is_some() { Option::from(vertices_set) } else { None },
@@ -108,7 +110,7 @@ impl GfxApiDevice for GfxDeviceOpengl {
 
     fn release_buffer(&self, module: BufferModule) {
         unsafe {
-            gl::DeleteVertexArrays(1, ptr::addr_of!(module.module_handle));
+            gl::DeleteVertexArrays(1, ptr::addr_of!(module.handle));
 
             if let Some(handles) = module.buffer_handles {
                 for handle in handles {
@@ -120,7 +122,7 @@ impl GfxApiDevice for GfxDeviceOpengl {
 
     fn draw_command(&self, command: &RenderCommand) {
         unsafe {
-            gl::BindVertexArray(command.buffer_module.module_handle);
+            gl::BindVertexArray(command.buffer_module.handle);
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
             gl::BindVertexArray(0);
         }

@@ -3,6 +3,8 @@ use std::io::Read;
 use std::rc::Rc;
 use crate::engine::rendering::shaders::{ShaderInfo, ShaderType};
 
+use super::renderer::RenderCmdHd;
+
 pub struct GfxDevice {
     instance: Rc<dyn GfxApiDevice>,
 }
@@ -14,7 +16,7 @@ pub struct ShaderModule {
 }
 
 pub struct BufferModule {
-    pub module_handle: u32,
+    pub handle: u32,
     pub buffer_handles: Option<Vec<u32>>,
     pub buffer_attributes: Option<Vec<f32>>,
     pub vertices: Option<Vec<Vec<f32>>>
@@ -22,6 +24,7 @@ pub struct BufferModule {
 
 pub struct RenderCommand {
     pub initialized: bool,
+    pub handle: RenderCmdHd,
     pub shader_module: ShaderModule,
     pub buffer_module: BufferModule
 }
@@ -97,7 +100,12 @@ impl GfxDevice {
     // Drawing
     // ======================
     pub fn build_command(&self, shad_mod: ShaderModule, buff_mod: BufferModule) -> RenderCommand {
+        static COMMAND_ID: u128 = 0;
+
+        COMMAND_ID += 1;
+
         RenderCommand {
+            id: COMMAND_ID,
             initialized: true,
             shader_module: shad_mod,
             buffer_module: buff_mod
