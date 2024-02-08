@@ -135,7 +135,7 @@ pub mod runtime {
                 // Late update for UI.
                 world.run_schedule(EcsLateUpdateSchedule);
 
-                // Render and passe overflow time
+                // Render and pass overflow time
                 renderer.render(accumulated_time);
 
                 let sleep_time: f32 = f32::max((1.0f32 / framerate) - delta, 0f32);

@@ -5,10 +5,13 @@ use crate::{
     },
     WindowMode,
 };
-use gl::types::*;
 use glfw::{Action, Context, Glfw, GlfwReceiver, Key, PWindow, WindowEvent};
 use std::rc::Rc;
 use glfw::ffi::glfwWindowHint;
+use crate::engine::rendering::gfx_device::{BufferModule, GfxApiDevice, GfxDevice, RenderCommand, ShaderModule};
+use crate::engine::rendering::opengl::GfxDeviceOpengl;
+use crate::engine::rendering::shaders::{ShaderInfo, ShaderType};
+use crate::engine::rendering::shaders::ShaderLoadType::OnDemand;
 
 pub type OnWindowResizedCb = dyn FnMut(&mut glfw::Window, i32, i32);
 
@@ -20,7 +23,9 @@ pub struct Renderer {
     pub window: PWindow,
     pub events: GlfwReceiver<(f64, WindowEvent)>,
     pub log: Rc<dyn LoggerBase>,
-    pub on_window_resized: Option<fn(i32, i32)>
+    pub on_window_resized: Option<fn(i32, i32)>,
+
+    pub gfx_device: Option<Box<GfxDevice>>,
 }
 
 impl Renderer {
@@ -44,7 +49,10 @@ impl Renderer {
             window,
             events,
             log,
-            on_window_resized: None
+            gfx_device: Option::from(Box::new(GfxDevice::new(
+                Rc::from(GfxDeviceOpengl::default())
+            ))),
+            on_window_resized: None,
         }
     }
 
@@ -117,10 +125,9 @@ impl Renderer {
         unsafe {
             // Manage inputs there
 
-            gl::ClearColor(0.5f32,0.2f32,0.3f32,1.0f32);
-            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
-
             // Render here
+            let gfx_device = self.gfx_device.as_ref().expect("Graphic device not allocated");
+            gfx_device.clear();
 
             self.poll_events();
             self.window.swap_buffers();
