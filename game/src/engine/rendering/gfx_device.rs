@@ -6,6 +6,8 @@ use super::{renderer::RenderCmdHd, shaders::Material};
 pub struct GfxDevice {
     instance: Rc<dyn GfxApiDevice>,
     cmd_ids: u128,
+
+    pub shader_api: Rc<dyn GfxApiShader>
 }
 
 pub struct ShaderModule {
@@ -30,7 +32,13 @@ pub struct RenderCommand {
     pub buffer_module: BufferModule
 }
 
-pub struct Vbo;
+// ==============================
+// sp_hdl - shader program handle
+pub trait GfxApiShader {
+    fn set_attribute_i32(&self, sp_hdl: u32, _identifier: &str, _value: i32);
+    fn set_attribute_f32(&self, sp_hdl: u32, _identifier: &str, _value: f32);
+    fn set_attribute_bool(&self, sp_hdl: u32, _identifier: &str, _value: bool);
+}
 
 pub trait GfxApiDevice {
 
@@ -57,11 +65,12 @@ pub trait GfxApiDevice {
 }
 
 impl GfxDevice {
-    pub fn new(device_impl: Rc<dyn GfxApiDevice>) -> Self {
+    pub fn new(device_impl: Rc<dyn GfxApiDevice>, shader_impl: Rc<dyn GfxApiShader>) -> Self {
         Self {
             instance: device_impl,
+            shader_api: shader_impl,
             cmd_ids: 0
-        }
+        } 
     }
 
     pub fn alloc_shader(&self, source: String, s_type: ShaderType) -> u32 { 

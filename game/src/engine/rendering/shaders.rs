@@ -42,8 +42,8 @@ impl ShaderInfo {
     }
 }
 
-impl Material { 
-    pub fn default() -> Material { 
+impl Material {
+    pub fn default() -> Material {
         Material {
             color: glm::vec4(1.0, 1.0, 1.0, 1.0),
             render_priority: 0,

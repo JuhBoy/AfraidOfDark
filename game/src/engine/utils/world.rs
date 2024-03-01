@@ -65,13 +65,13 @@ impl World {
             }
         }
 
-        for updated_entity in container.updated_2d_render.iter() { 
+        for updated_entity in container.updated_2d_render.iter() {
             println!("[TODO]: updated entity {:?}", updated_entity); // todo: implement changes there.
         }
 
         for (handle, _entity) in self.rhandle_links.borrow().iter() {
             renderer.enqueue_cmd_for_current_frame(handle.clone());
-            println!("[Rendering Bridge]: enqueue entity {:?}", _entity);
+            // println!("[Rendering Bridge]: enqueue entity {:?}", _entity);
         }
 
         container.new_2d_render.clear();

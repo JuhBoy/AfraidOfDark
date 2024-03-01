@@ -11,7 +11,7 @@ use glfw::ffi::glfwWindowHint;
 use crate::engine::rendering::gfx_device::GfxDevice;
 use crate::engine::rendering::opengl::GfxDeviceOpengl;
 
-use super::{gfx_device::RenderCommand, renderer_storage::RendererStorage, shaders::{Material, ShaderInfo, ShaderType}};
+use super::{gfx_device::RenderCommand, gfx_opengl_shaders::GfxOpenGLShaderApi, renderer_storage::RendererStorage, shaders::{Material, ShaderInfo, ShaderType}};
 
 pub type OnWindowResizedCb = dyn FnMut(&mut glfw::Window, i32, i32);
 pub type RenderCmdHd = u128;
@@ -71,7 +71,8 @@ impl Renderer {
             events,
             log,
             gfx_device: Option::from(Box::new(GfxDevice::new(
-                Rc::from(GfxDeviceOpengl::default())
+                Rc::from(GfxDeviceOpengl::default()),
+                Rc::from(GfxOpenGLShaderApi::default())
             ))),
             on_window_resized: None,
         }
