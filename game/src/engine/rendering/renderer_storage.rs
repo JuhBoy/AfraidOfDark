@@ -4,6 +4,7 @@ use std::{
 
 use crate::engine::utils::file_system::FileSystem;
 use crate::engine::utils::file_system::FileType;
+use crate::engine::rendering::shaders::Texture;
 
 use super::{
     gfx_device::RenderCommand,
@@ -90,5 +91,19 @@ impl RendererStorage {
         println!("Loading shader: {}", &file_name);
 
         FileSystem::load_file(&file_name, FileType::Shader)
+    }
+    
+    pub fn load_texture(&self, texture_name: &str) -> Result<Texture, String> {
+        #[cfg(debug_assertions)]
+        
+        let tex = FileSystem::load_texture(&texture_name);
+
+        if let Some(texture) = tex.as_ref().ok() {
+            println!("[Texture Loading]: name: {} width: {} height: {} channels {}", texture_name, texture.width, texture.height, texture.channels);
+        } else { 
+            println!("[Texture Loading]: failed for {}", texture_name);
+        }
+
+        tex
     }
 }

@@ -171,6 +171,12 @@ impl Renderer {
         let shader_module = gfx_device.new_shader_module(vs_hdl, fs_hdl);
         let buffer_module = gfx_device.alloc_buffer(RendererStorage::load(&render_req.mesh_info), Option::from(false));
 
+        if let Some(tex_name) = render_req.material.as_ref().main_texture.as_ref() {
+            let _texture = self.rendering_store.load_texture(&tex_name);
+        } else { 
+            println!("[Render Request] __Texture__ => No texture to load");
+        }
+
         let command: RenderCommand = gfx_device.build_command(shader_module, buffer_module);
         let command_handle = self.rendering_store.store_command(command, true);
 

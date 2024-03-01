@@ -37,7 +37,7 @@ pub fn late_update_system(_time: Res<Time>, mut query: Query<(&mut SpriteRendere
 
     for (mut sprite, mut checker) in query.iter_mut() { 
         if checker.accumulated_time > 500 { 
-            sprite.texture = Option::from(String::from("newtexture.tex"));
+            sprite.texture = Option::from(String::from("Dark/texture_05.png"));
             checker.accumulated_time = 0;
         }
         checker.accumulated_time += 1;
@@ -81,7 +81,7 @@ fn main() {
                 scale: Scale::default(),
             },
             SpriteRenderer2D {
-                texture: Option::from(String::from("toto.texture")),
+                texture: Option::from(String::from("Dark/texture_01.png")),
                 material: None,
             },
             ChangeChecker { accumulated_time: 0 }

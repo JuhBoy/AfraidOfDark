@@ -24,6 +24,14 @@ pub struct ShaderPack {
 }
 
 #[derive(Debug)]
+pub struct Texture {
+    pub data: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+    pub channels: u32
+}
+
+#[derive(Debug)]
 pub struct Material {
     pub color: glm::Vec4,
     pub render_priority: i8,
@@ -43,11 +51,11 @@ impl ShaderInfo {
 }
 
 impl Material {
-    pub fn default() -> Material {
+    pub fn default(texture: Option<String>) -> Material {
         Material {
             color: glm::vec4(1.0, 1.0, 1.0, 1.0),
             render_priority: 0,
-            main_texture: Option::None,
+            main_texture: texture,
             shaders: ShaderPack { vertex: Option::Some(ShaderInfo::default(ShaderType::Vertex)), fragment: Option::Some(ShaderInfo::default(ShaderType::Fragment)) },
             pixel_per_unit: 100
         }

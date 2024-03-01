@@ -37,7 +37,7 @@ impl World {
                         count: 0,
                         vertices_set: None,
                     },
-                    material: comp.material.clone().unwrap_or(Arc::new(Material::default())),
+                    material: comp.material.clone().unwrap_or(Arc::new(Material::default(comp.texture.clone()))),
                 });
 
                 let links_len: usize = self.rhandle_links.borrow().len();

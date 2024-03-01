@@ -3,6 +3,8 @@
 layout (location = 0) in vec3 pos;
 
 uniform int offsetX;
+uniform vec3 color;
+uniform sampler2D texture1;
 
 void main()
 {
