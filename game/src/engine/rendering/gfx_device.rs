@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use crate::engine::rendering::shaders::ShaderType;
 
-use super::{renderer::RenderCmdHd, shaders::Material};
+use super::{renderer::RenderCmdHd, shaders::{Material, Texture}};
 
 pub struct GfxDevice {
     instance: Rc<dyn GfxApiDevice>,
@@ -14,6 +14,7 @@ pub struct ShaderModule {
     pub self_handle: u32,
     pub vertex_handle: Option<u32>, // they can be deleted already
     pub fragment_handle: Option<u32>, // they can be deleted already
+    pub texture_hadles: Vec<u32>, // Can be empty
     pub material: Material
 }
 
@@ -38,6 +39,8 @@ pub trait GfxApiShader {
     fn set_attribute_i32(&self, sp_hdl: u32, _identifier: &str, _value: i32);
     fn set_attribute_f32(&self, sp_hdl: u32, _identifier: &str, _value: f32);
     fn set_attribute_bool(&self, sp_hdl: u32, _identifier: &str, _value: bool);
+
+    fn set_texture(&self, sp_hdl: u32, texture: Texture, texture_location: i32) -> u32;
 }
 
 pub trait GfxApiDevice {
@@ -53,7 +56,7 @@ pub trait GfxApiDevice {
     // ======================
     // Buffers
     // ======================
-    fn alloc_buffer(&self, vertices_set: Vec<Vec<f32>>, keep_vertices: Option<bool>) -> BufferModule;
+    fn alloc_buffer(&self, vertices_set: Vec<Vec<f32>>, indices: Vec<Vec<u32>>, keep_vertices: Option<bool>) -> BufferModule;
     fn release_buffer(&self, module: BufferModule);
 
     // ======================
@@ -92,8 +95,8 @@ impl GfxDevice {
     // ======================
     // Buffers
     // ======================
-    pub fn alloc_buffer(&self, vertices_set: Vec<Vec<f32>>, keep_vertices: Option<bool>) -> BufferModule {
-        self.instance.alloc_buffer(vertices_set, keep_vertices)
+    pub fn alloc_buffer(&self, vertices_set: Vec<Vec<f32>>, indices: Vec<Vec<u32>>, keep_vertices: Option<bool>) -> BufferModule {
+        self.instance.alloc_buffer(vertices_set, indices, keep_vertices)
     }
 
     pub fn release_buffer(&self, module: BufferModule) {

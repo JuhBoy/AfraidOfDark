@@ -68,6 +68,7 @@ impl GfxApiDevice for GfxDeviceOpengl {
             self_handle: program_handle,
             fragment_handle: frag_hd,
             vertex_handle: vert_hd,
+            texture_hadles: vec![],
             material: Material {
                 color: glm::vec4(1f32 ,1f32 ,1f32 , 1f32),
                 render_priority: 0,
@@ -86,27 +87,39 @@ impl GfxApiDevice for GfxDeviceOpengl {
         unsafe { gl::DeleteProgram(module_handle) }
     }
 
-    fn alloc_buffer(&self, vertices_set: Vec<Vec<f32>>, keep_vertices: Option<bool>) -> BufferModule {
+    fn alloc_buffer(&self, vertices_set: Vec<Vec<f32>>, indices: Vec<Vec<u32>>, keep_vertices: Option<bool>) -> BufferModule {
         let mut vao_handle = 0u32;
         let mut vbo_handles: Vec<u32> = Vec::new();
 
         unsafe {
-            gl::GenVertexArrays(0, ptr::addr_of_mut!(vao_handle));
+            gl::GenVertexArrays(1, ptr::addr_of_mut!(vao_handle));
             gl::BindVertexArray(vao_handle);
 
             for vertex_buffer in &vertices_set {
                 let mut vbo_hd = 0;
                 let buffer_size: usize = size_of::<f32>() * vertex_buffer.len();
-                let vertex_stride: usize = size_of::<f32>() * 3;
+                let vertex_stride: usize = size_of::<f32>() * 5;
 
                 gl::GenBuffers(1, ptr::addr_of_mut!(vbo_hd));
                 gl::BindBuffer(gl::ARRAY_BUFFER, vbo_hd);
                 gl::BufferData(gl::ARRAY_BUFFER, buffer_size as GLsizeiptr, vertex_buffer.as_ptr().cast(), gl::STATIC_DRAW);
 
+                // position attribute
                 gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, vertex_stride as GLsizei, ptr::null());
                 gl::EnableVertexAttribArray(0);
 
+                // uvs attribute
+                gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, vertex_stride as GLsizei, (3 * size_of::<f32>()) as *const _);
+                gl::EnableVertexAttribArray(1);
+
+                let mut ebo_hd = 0;
+                gl::GenBuffers(1, ptr::addr_of_mut!(ebo_hd));
+                gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo_hd);
+                gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, (indices[0].len() * size_of::<u32>()) as GLsizeiptr, indices[0].as_ptr().cast(), gl::DYNAMIC_DRAW);
+
                 vbo_handles.push(vbo_hd as u32);
+
+                gl::BindVertexArray(0);
             }
         }
 
@@ -137,11 +150,16 @@ impl GfxApiDevice for GfxDeviceOpengl {
         unsafe {
             gl::BindVertexArray(command.buffer_module.handle);
             gl::PolygonMode(gl::FRONT, gl::FILL);
-            gl::PolygonMode(gl::BACK, gl::LINE);
+            gl::PolygonMode(gl::BACK, gl::FILL);
 
-            for (i, buffer) in command.buffer_module.buffer_handles.as_ref().unwrap().iter().enumerate() {
+            command.shader_module.texture_hadles.iter().enumerate().for_each(|(i, x)| {
+                gl::ActiveTexture(gl::TEXTURE0 + i as u32);
+                gl::BindTexture(gl::TEXTURE_2D, *x);
+            });
+
+            for buffer in command.buffer_module.buffer_handles.as_ref().unwrap().iter() {
                 gl::BindBuffer(gl::ARRAY_BUFFER, *buffer);
-                gl::DrawArrays(gl::TRIANGLES, 0, command.buffer_module.vertices_count.as_ref().unwrap()[i] as i32);
+                gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
             }
             gl::BindVertexArray(0);
         }

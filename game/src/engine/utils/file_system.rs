@@ -43,6 +43,8 @@ impl FileSystem {
                 let height = img.height();
                 let channels = if img.color().has_alpha() { 4 } else { 3 }; // todo! handle 1-2-3 and 4 channels later
 
+                let img = img.flipv();
+
                 Ok(Texture {
                     data: img.into_bytes(),
                     width,

@@ -168,12 +168,15 @@ impl Renderer {
         let vs_hdl = gfx_device.alloc_shader(vs_content, ShaderType::Vertex);
         let fs_hdl = gfx_device.alloc_shader(fs_content, ShaderType::Fragment);
 
-        let shader_module = gfx_device.new_shader_module(vs_hdl, fs_hdl);
-        let buffer_module = gfx_device.alloc_buffer(RendererStorage::load(&render_req.mesh_info), Option::from(false));
+        let mut shader_module = gfx_device.new_shader_module(vs_hdl, fs_hdl);
+        let buffer_module = gfx_device.alloc_buffer(RendererStorage::load(&render_req.mesh_info), vec![RendererStorage::get_quad_indices()], Option::from(false));
 
         if let Some(tex_name) = render_req.material.as_ref().main_texture.as_ref() {
-            let _texture = self.rendering_store.load_texture(&tex_name);
-        } else { 
+            let texture = self.rendering_store.load_texture(&tex_name).ok().unwrap();
+            let texture_handle = gfx_device.shader_api.set_texture(shader_module.self_handle, texture, 0);
+            shader_module.texture_hadles.push(texture_handle);
+            println!("[Texture Loading] => Texture handle: {}", texture_handle)
+        } else {
             println!("[Render Request] __Texture__ => No texture to load");
         }
 

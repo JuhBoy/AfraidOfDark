@@ -23,6 +23,21 @@ const SQUARE_NO_INDICES: [f32; 18] = [
      1.0,  1.0, 0.0   // bottom
 ];
 
+#[allow(dead_code)]
+const SQUARE_WITH_UVS: [f32; 20] = [
+     // positions                // texture coords
+     1.0f32,   1.0f32, 0.0f32,   1.0f32, 1.0f32,   // top left
+     1.0f32,  -1.0f32, 0.0f32,   1.0f32, 0.0f32,   // top right
+    -1.0f32,  -1.0f32, 0.0f32,   0.0f32, 0.0f32,   // bottom right
+    -1.0f32,   1.0f32, 0.0f32,   0.0f32, 1.0f32,   // bottom left
+];
+
+#[allow(dead_code)]
+const INDICES: [u32; 6] = [
+    0, 1, 3,
+    1, 2, 3
+];
+
 pub struct RendererStorage {
     pub render_command_storage: HashMap<RenderCmdHd, Rc<RenderCommand>>,
     pub renderer_queue: VecDeque<Rc<RenderCommand>>,
@@ -32,15 +47,13 @@ impl RendererStorage {
     pub fn load(_mesh_info: &MeshInfo) -> Vec<Vec<f32>> {
         // unimplemented!("Load vertices not implemented yet");
         let mut vertices: Vec<Vec<f32>> = Vec::new();
-        vertices.push(SQUARE_NO_INDICES.to_vec());
-
-        for i in 0..vertices.len() {
-            for j in 0..vertices[i].len() {
-                vertices[i][j] = vertices[i][j] * 0.9;
-            }
-        }
-
+        vertices.push(SQUARE_WITH_UVS.to_vec());
+    
         vertices
+    }
+
+    pub fn get_quad_indices() -> Vec<u32> {
+        INDICES.to_vec()
     }
 
     pub fn load_vertices(_file_path: &str) -> Vec<f32> {

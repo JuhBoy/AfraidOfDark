@@ -81,7 +81,7 @@ fn main() {
                 scale: Scale::default(),
             },
             SpriteRenderer2D {
-                texture: Option::from(String::from("Dark/texture_01.png")),
+                texture: Option::from(String::from("Dark/texture_07.png")),
                 material: None,
             },
             ChangeChecker { accumulated_time: 0 }
