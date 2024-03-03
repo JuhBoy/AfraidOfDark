@@ -56,7 +56,7 @@ impl World {
                 self.rhandle_links.borrow_mut().push((handle, entity.clone()));
                 self.rhandle_to_link_index.borrow_mut().insert(entity.clone(), links_len);
 
-                println!("[ECS Rendering] New command request with tex {}", comp.texture.as_ref().unwrap_or(&String::from("none")));
+                println!("[ECS Rendering] New command created with link (entity: {} <=> rendering_handle: {})", entity.index(), handle);
             }
         }
     }
@@ -77,17 +77,20 @@ impl World {
         }
 
         for updated_entity in container.updated_2d_render.iter() {
-            println!("[TODO]: updated entity {:?}", updated_entity); // todo: implement changes there.
+            println!("[TODO]: updated entity {:?}", updated_entity); // todo! implement changes there.
         }
 
         for (handle, _entity) in self.rhandle_links.borrow().iter() {
             renderer.enqueue_cmd_for_current_frame(handle.clone());
-            // println!("[Rendering Bridge]: enqueue entity {:?}", _entity);
         }
 
         container.new_2d_render.clear();
         container.deleted_2d_render.clear();
         container.updated_2d_render.clear();
+    }
+
+    pub fn flush_camera_changes(&mut self, _renderer: &mut Renderer) {
+        // todo! implement camera changes
     }
 
     pub fn get_main_camera(&self) -> Entity {

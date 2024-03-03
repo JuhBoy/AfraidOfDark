@@ -11,7 +11,11 @@ pub struct Time {
 #[derive(Resource, Default)]
 pub struct RenderingResourcesContainer {
     pub frame: f64,
+
     pub new_2d_render: Vec<Entity>,
     pub updated_2d_render: Vec<Entity>,
-    pub deleted_2d_render: Vec<Entity>
+    pub deleted_2d_render: Vec<Entity>,
+
+    pub updated_camera_transform: Vec<Entity>,
+    pub updated_camera_settings: Vec<Entity>,
 }

@@ -6,7 +6,7 @@ use crate::{
     WindowMode,
 };
 use glfw::{ffi::glfwInit, Action, Context, Glfw, GlfwReceiver, Key, PWindow, WindowEvent};
-use std::{collections::{HashMap, VecDeque}, rc::Rc, sync::Arc};
+use std::{cell::RefCell, collections::{HashMap, VecDeque}, rc::Rc, sync::Arc};
 use glfw::ffi::glfwWindowHint;
 use crate::engine::rendering::gfx_device::GfxDevice;
 use crate::engine::rendering::opengl::GfxDeviceOpengl;
@@ -36,6 +36,7 @@ enum RenderState { Opened, Closed }
 pub struct Renderer {
     rendering_state: RenderState,
     rendering_store: RendererStorage,
+    viewport_rect: RefCell<glm::Vector4<f32>>, // x, y, width, height (Range is [0; 1])
 
     pub instance: Glfw,
     pub window: PWindow,
@@ -77,6 +78,7 @@ impl Renderer {
         Self {
             rendering_state: RenderState::Closed,
             rendering_store: RendererStorage { render_command_storage: HashMap::new(), renderer_queue: VecDeque::new() },
+            viewport_rect: RefCell::new(glm::vec4(0.0, 0.0, 1.0, 1.0)),
 
             instance,
             window,
@@ -98,7 +100,30 @@ impl Renderer {
         gl::load_with(|procname: &str| self.window.get_proc_address(procname));
 
         let callback = self.on_window_resized.clone();
+        let viewport = self.viewport_rect.clone();
 
+        // TODO: 
+        // I'm currently working on trnasfering changes done in the ECS part to the underlying system of rendering (here)
+        // so the update callback must be kill and sent to the opengl side (as it use glViewport() function to update the viewport size)
+        // [] - Update the viewport size in the opengl side
+        // [] - Pass viewport change from ECS to the rendering system
+        // [] - Update Camera changes from ECS to the rendering system via shader_api (uniforms)
+        // [] - Update Transform of SpriteRenderer2D from ECS to the rendering system via shader_api (uniforms)
+        // [] - Adds orthographic projection to the shader_api
+        //
+        let update_viewport_cb = move |window: &mut glfw::Window| {
+            let (scaled_width, scaled_height) = window.get_framebuffer_size();
+
+            let vp_borrow = viewport.borrow();
+            let final_x = scaled_width as f32 * vp_borrow.x;
+            let final_y = scaled_height as f32 * vp_borrow.y;
+            let final_w = scaled_width as f32 * vp_borrow.z;
+            let final_h = scaled_height as f32 * vp_borrow.w;
+
+            unsafe {
+                gl::Viewport(final_x as i32, final_y as i32, final_w as i32, final_h as i32);
+            }
+        };
         self.window.set_size_callback(move |window: &mut glfw::Window, width: i32, height: i32| {
             if let Some(callback) = callback {
                 callback(width, height);
@@ -109,16 +134,20 @@ impl Renderer {
                 println!("Window screen coords resized: {}x{} (scale factor {}x{})", width, height, w_factor, h_factor);
             }
 
-            unsafe {
-                let (scaled_width, scaled_height) = window.get_framebuffer_size();
-                gl::Viewport(0, 0, scaled_width, scaled_height);
-            }
+            update_viewport_cb(window);
         });
         self.window.make_current();
 
+        let (scaled_width, scaled_height) = self.window.get_framebuffer_size();
+
+        let vp_borrow = self.viewport_rect.borrow();
+        let final_x = scaled_width as f32 * vp_borrow.x;
+        let final_y = scaled_height as f32 * vp_borrow.y;
+        let final_w = scaled_width as f32 * vp_borrow.z;
+        let final_h = scaled_height as f32 * vp_borrow.w;
+
         unsafe {
-            let (width, height) = self.window.get_framebuffer_size();
-            gl::Viewport(0, 0, width, height);
+            gl::Viewport(final_x as i32, final_y as i32, final_w as i32, final_h as i32);
         }
     }
 

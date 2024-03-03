@@ -4,7 +4,7 @@ pub mod runtime {
     use crate::engine::{
         ecs::{
             config::{EcsFixedUpdateSchedule, EcsLateUpdateSchedule, EcsUpdateSchedule},
-            systems::{add_camera_2d_system, add_sprite_2d_system, changed_sprite_2d_system, update_camera_2d_system},
+            systems::{add_camera_2d_system, add_sprite_2d_system, changed_sprite_2d_system, update_camera_settings_system, update_camera_transform_system},
             time::{RenderingResourcesContainer, Time},
         },
         logging::{consts, logs::Logger, logs_traits::LoggerBase},
@@ -69,7 +69,8 @@ pub mod runtime {
             late_update_schedule.add_systems(changed_sprite_2d_system);
             late_update_schedule.add_systems(add_sprite_2d_system);
             late_update_schedule.add_systems(add_camera_2d_system);
-            late_update_schedule.add_systems(update_camera_2d_system);
+            late_update_schedule.add_systems(update_camera_settings_system);
+            late_update_schedule.add_systems(update_camera_transform_system);
 
             world.add_schedule(update_schedule);
             world.add_schedule(fixed_update_schedule);
@@ -88,6 +89,8 @@ pub mod runtime {
                 new_2d_render: Vec::new(),
                 updated_2d_render: Vec::new(),
                 deleted_2d_render: Vec::new(),
+                updated_camera_settings: Vec::new(),
+                updated_camera_transform: Vec::new(),
             });
 
             self
@@ -149,6 +152,7 @@ pub mod runtime {
                 // Bakes rendering commands
                 world.inject_new_rendering_entities(renderer);
                 world.flush_rendering_command_handles(renderer);
+                world.flush_camera_changes(renderer);
 
                 // Render and forward overflow time
                 renderer.render(accumulated_time);

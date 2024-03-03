@@ -53,8 +53,16 @@ pub fn add_camera_2d_system(mut query: Query<(Entity, &Transform, &Camera), Adde
     }
 }
 
-pub fn update_camera_2d_system(query: Query<(Entity, &Transform, &Camera), Changed<Transform>>) {
-    query.iter().for_each(|(entity, transform, camera)| {
-        println!("[Camera] Update (id: {})", entity.index());
-    });
+/// Camera Update systems
+
+pub fn update_camera_transform_system(mut container: ResMut<RenderingResourcesContainer>,
+                                      query: Query<Entity, Changed<Transform>>) {
+    query.iter().for_each(|entity| { container.updated_camera_transform.push(entity); });
 }
+
+pub fn update_camera_settings_system(mut container: ResMut<RenderingResourcesContainer>,
+                                     query: Query<Entity, Changed<Camera>>) {
+    query.iter().for_each(|entity| { container.updated_camera_settings.push(entity); });
+}
+
+// End of camera Update systems
