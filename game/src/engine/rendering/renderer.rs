@@ -50,6 +50,19 @@ impl Renderer {
     pub fn init_with_glfw(settings: &WindowSettings, log: Rc<dyn LoggerBase>) -> Self {
         let mut instance = glfw::init(glfw::fail_on_errors).unwrap();
 
+        // Set the OpenGL version to 3.3 - todo! export this in opengl files
+        unsafe {
+            glfwInit();
+            glfwWindowHint(glfw::ffi::CONTEXT_VERSION_MAJOR, 3);
+            glfwWindowHint(glfw::ffi::CONTEXT_VERSION_MINOR, 3);
+
+            #[cfg(target_os = "macos")]
+            { 
+                glfwWindowHint(glfw::ffi::OPENGL_PROFILE, glfw::ffi::OPENGL_CORE_PROFILE);
+                glfwWindowHint(glfw::ffi::OPENGL_FORWARD_COMPAT, glfw::ffi::TRUE);
+            }
+        }
+
         let (window, events) = instance
             .create_window(
                 settings.width,
@@ -59,8 +72,7 @@ impl Renderer {
                     WindowMode::Windowed => glfw::WindowMode::Windowed,
                     _ => panic!(),
                 },
-            )
-            .expect("Failed to create window");
+            ).expect("Failed to create window");
 
         Self {
             rendering_state: RenderState::Closed,
@@ -105,14 +117,6 @@ impl Renderer {
         self.window.make_current();
 
         unsafe {
-            glfwInit();
-            glfwWindowHint(glfw::ffi::CONTEXT_VERSION_MAJOR, 3);
-            glfwWindowHint(glfw::ffi::CONTEXT_VERSION_MINOR, 3);
-            glfwWindowHint(glfw::ffi::OPENGL_PROFILE, glfw::ffi::OPENGL_CORE_PROFILE);
-
-            #[cfg(target_os = "macos")]
-            glfwWindowHint(glfw::ffi::OPENGL_FORWARD_COMPAT, glfw::ffi::TRUE);
-
             let (width, height) = self.window.get_framebuffer_size();
             gl::Viewport(0, 0, width, height);
         }

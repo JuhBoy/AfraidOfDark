@@ -71,14 +71,11 @@ impl GfxApiShader for GfxOpenGLShaderApi {
             let texture_location_name = format!("texture{}", texture_location);
             let location = self.get_uniform_location(prog_hdl, &texture_location_name);
 
-            match location {
-                Ok(loc) => {
-                    gl::Uniform1i(loc, texture_location);
-                }
-                Err(e) => {
-                    println!("No location found for texture0 {}", e);
-                }
+            if let Ok(loc) = location {
+                gl::Uniform1i(loc, texture_location);
             }
+
+            gl::BindTexture(gl::TEXTURE_2D, 0);
 
             tex_hdl
         }

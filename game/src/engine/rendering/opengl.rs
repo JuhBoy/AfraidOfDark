@@ -37,6 +37,14 @@ impl GfxApiDevice for GfxDeviceOpengl {
                 ptr::null(),
             );
             gl::CompileShader(shader_handle);
+
+            let mut success: i32 = 0;
+            gl::GetShaderiv(shader_handle, gl::COMPILE_STATUS, &mut success);
+            if success == 0 { 
+                let mut info_log: Vec<u8> = vec![0; 512];
+                gl::GetShaderInfoLog(shader_handle, 512, ptr::null_mut(), info_log.as_mut_ptr().cast());
+                println!("Shader Compilation Error: {}", String::from_utf8(info_log).unwrap());
+            }
         }
 
         shader_handle
@@ -150,7 +158,7 @@ impl GfxApiDevice for GfxDeviceOpengl {
         unsafe {
             gl::BindVertexArray(command.buffer_module.handle);
             gl::PolygonMode(gl::FRONT, gl::FILL);
-            gl::PolygonMode(gl::BACK, gl::FILL);
+            gl::PolygonMode(gl::BACK, gl::LINE);
 
             command.shader_module.texture_hadles.iter().enumerate().for_each(|(i, x)| {
                 gl::ActiveTexture(gl::TEXTURE0 + i as u32);
@@ -161,7 +169,10 @@ impl GfxApiDevice for GfxDeviceOpengl {
                 gl::BindBuffer(gl::ARRAY_BUFFER, *buffer);
                 gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
             }
+
             gl::BindVertexArray(0);
+            gl::BindTexture(gl::TEXTURE_2D, 0);
+            gl::BindBuffer(gl::ARRAY_BUFFER, 0);
         }
     }
 
