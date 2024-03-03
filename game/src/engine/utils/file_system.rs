@@ -35,7 +35,7 @@ impl FileSystem {
     pub fn load_texture(file_path: &str) -> Result<Texture, String> {
         let file_path: String = FileSystem::get_path(file_path, FileType::Texture);
 
-        println!("Loading texture: {}", &file_path);
+        println!("[File System] Loading texture: {}", &file_path);
 
         match Reader::open(&file_path).unwrap().decode() {
             Ok(img) => {

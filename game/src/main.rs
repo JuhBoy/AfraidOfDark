@@ -1,7 +1,8 @@
 use bevy_ecs::entity::Entity;
+use bevy_ecs::query::Without;
 use bevy_ecs::schedule::Schedules;
 use bevy_ecs::system::{Query, Res};
-use engine::ecs::components::{Rotation, Scale, SpriteRenderer2D, Transform};
+use engine::ecs::components::{Camera, Rotation, Scale, SpriteRenderer2D, Transform};
 use engine::ecs::config::{EcsFixedUpdateSchedule, EcsLateUpdateSchedule, EcsUpdateSchedule};
 use engine::ecs::time::Time;
 use engine::lib::runtime::App;
@@ -13,11 +14,11 @@ use crate::engine::ecs::components::Position;
 pub mod engine;
 
 #[derive(bevy_ecs::component::Component)]
-pub struct ChangeChecker { 
+pub struct ChangeChecker {
     pub accumulated_time: u64,
 }
 
-pub fn update_system(time: Res<Time>, mut query: Query<(Entity, &mut Transform)>) {
+pub fn update_system(time: Res<Time>, mut query: Query<(Entity, &mut Transform), Without<Camera>>) {
     for (_entity, mut transform) in query.iter_mut() {
         let x: &f32 = &transform.position.x;
         transform.position = Position {
@@ -81,7 +82,7 @@ fn main() {
                 scale: Scale::default(),
             },
             SpriteRenderer2D {
-                texture: Option::from(String::from("Dark/texture_07.png")),
+                texture: Option::from(String::from("Dark/texture_01.png")),
                 material: None,
             },
             ChangeChecker { accumulated_time: 0 }

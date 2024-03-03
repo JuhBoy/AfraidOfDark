@@ -5,6 +5,8 @@ use std::sync::Arc;
 
 use bevy_ecs::entity::Entity;
 
+use crate::engine::ecs::components::{Camera, Transform};
+use crate::engine::ecs::components::Projection;
 use crate::engine::rendering::renderer::{MeshInfo, RenderCmdHd, RenderRequest, Renderer };
 use crate::engine::rendering::shaders::Material;
 use crate::engine::ecs::{ time::RenderingResourcesContainer, components::SpriteRenderer2D };
@@ -12,15 +14,24 @@ use crate::engine::ecs::{ time::RenderingResourcesContainer, components::SpriteR
 pub struct World {
     m_world: bevy_ecs::world::World,
     rhandle_links: RefCell<Vec<(RenderCmdHd, Entity)>>, // rendering handle that map a gfx handle to an Entity
-    rhandle_to_link_index: RefCell<HashMap<Entity, usize>> // map entity to the index of the rhandle_links
+    rhandle_to_link_index: RefCell<HashMap<Entity, usize>>, // map entity to the index of the rhandle_links
+
+    main_camera: Entity
 }
 
 impl World {
     pub fn new() -> Self {
+        let mut world = bevy_ecs::world::World::new();
+
         Self {
-            m_world: bevy_ecs::world::World::new(),
+            main_camera: world.spawn((
+                Camera { fov: 80.0, near: 0.1, far: 100.0, viewport: (1.0, 1.0), mode: Projection::Orthographic, output_target: Option::None, background_color: Option::None },
+                Transform { position: Default::default(), rotation: Default::default(), scale: Default::default() }
+            )).id(),
+
+            m_world: world,
             rhandle_links: RefCell::new(Vec::new()),
-            rhandle_to_link_index: RefCell::new(HashMap::new())
+            rhandle_to_link_index: RefCell::new(HashMap::new()),
         }
     }
 
@@ -45,7 +56,7 @@ impl World {
                 self.rhandle_links.borrow_mut().push((handle, entity.clone()));
                 self.rhandle_to_link_index.borrow_mut().insert(entity.clone(), links_len);
 
-                println!("new request command will fetch with tex {}", comp.texture.as_ref().unwrap_or(&String::from("none")));
+                println!("[ECS Rendering] New command request with tex {}", comp.texture.as_ref().unwrap_or(&String::from("none")));
             }
         }
     }
@@ -77,6 +88,10 @@ impl World {
         container.new_2d_render.clear();
         container.deleted_2d_render.clear();
         container.updated_2d_render.clear();
+    }
+
+    pub fn get_main_camera(&self) -> Entity {
+        self.main_camera
     }
 }
 

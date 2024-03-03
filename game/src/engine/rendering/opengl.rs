@@ -21,11 +21,11 @@ impl GfxApiDevice for GfxDeviceOpengl {
             match s_type {
                 ShaderType::Vertex => {
                     shader_handle = gl::CreateShader(gl::VERTEX_SHADER);
-                    println!("Vertex Shader handle created: {} \n{}", &shader_handle, &source);
+                    println!("[Shader] Vertex handle created: {} \n{}", &shader_handle, &source);
                 }
                 ShaderType::Fragment => {
                     shader_handle = gl::CreateShader(gl::FRAGMENT_SHADER);
-                    println!("Fragment Shader handle created: {} \n{}", &shader_handle, &source);
+                    println!("[Shader] Fragment handle created: {} \n{}", &shader_handle, &source);
                 }
             }
 
@@ -43,7 +43,7 @@ impl GfxApiDevice for GfxDeviceOpengl {
             if success == 0 { 
                 let mut info_log: Vec<u8> = vec![0; 512];
                 gl::GetShaderInfoLog(shader_handle, 512, ptr::null_mut(), info_log.as_mut_ptr().cast());
-                println!("Shader Compilation Error: {}", String::from_utf8(info_log).unwrap());
+                println!("[Shader] Compilation Error: {}", String::from_utf8(info_log).unwrap());
             }
         }
 

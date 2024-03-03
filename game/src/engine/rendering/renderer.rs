@@ -179,9 +179,7 @@ impl Renderer {
             let texture = self.rendering_store.load_texture(&tex_name).ok().unwrap();
             let texture_handle = gfx_device.shader_api.set_texture(shader_module.self_handle, texture, 0);
             shader_module.texture_hadles.push(texture_handle);
-            println!("[Texture Loading] => Texture handle: {}", texture_handle)
-        } else {
-            println!("[Render Request] __Texture__ => No texture to load");
+            println!("[Texture Loading] New Texture handle: {}", texture_handle)
         }
 
         let command: RenderCommand = gfx_device.build_command(shader_module, buffer_module);

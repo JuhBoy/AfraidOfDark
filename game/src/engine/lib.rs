@@ -4,7 +4,7 @@ pub mod runtime {
     use crate::engine::{
         ecs::{
             config::{EcsFixedUpdateSchedule, EcsLateUpdateSchedule, EcsUpdateSchedule},
-            systems::{add_sprite_2d_system, changed_sprite_2d_system},
+            systems::{add_camera_2d_system, add_sprite_2d_system, changed_sprite_2d_system, update_camera_2d_system},
             time::{RenderingResourcesContainer, Time},
         },
         logging::{consts, logs::Logger, logs_traits::LoggerBase},
@@ -68,6 +68,8 @@ pub mod runtime {
 
             late_update_schedule.add_systems(changed_sprite_2d_system);
             late_update_schedule.add_systems(add_sprite_2d_system);
+            late_update_schedule.add_systems(add_camera_2d_system);
+            late_update_schedule.add_systems(update_camera_2d_system);
 
             world.add_schedule(update_schedule);
             world.add_schedule(fixed_update_schedule);

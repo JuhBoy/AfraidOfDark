@@ -101,7 +101,7 @@ impl RendererStorage {
         }
 
         #[cfg(debug_assertions)]
-        println!("Loading shader: {}", &file_name);
+        println!("[Shaders] Loading shader {}", &file_name);
 
         FileSystem::load_file(&file_name, FileType::Shader)
     }
