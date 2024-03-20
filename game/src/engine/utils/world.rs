@@ -25,7 +25,7 @@ impl World {
 
         Self {
             main_camera: world.spawn((
-                Camera { fov: 80.0, near: 0.1, far: 100.0, viewport: (1.0, 1.0), mode: Projection::Orthographic, output_target: Option::None, background_color: Option::None },
+                Camera { fov: 80.0, near: 0.1, far: 100.0, viewport: (0.0, 0.0, 1.0, 1.0), mode: Projection::Orthographic, output_target: Option::None, background_color: Option::None },
                 Transform { position: Default::default(), rotation: Default::default(), scale: Default::default() }
             )).id(),
 
@@ -89,8 +89,12 @@ impl World {
         container.updated_2d_render.clear();
     }
 
-    pub fn flush_camera_changes(&mut self, _renderer: &mut Renderer) {
-        // todo! implement camera changes
+    pub fn flush_camera_changes(&mut self, renderer: &mut Renderer) {
+        let camera = self.m_world.entity(self.main_camera);
+        let camera_component = camera.get::<Camera>().unwrap();
+        let (x, y, w, h) = camera_component.viewport.clone();
+
+        renderer.update_viewport(x, y, w, h);
     }
 
     pub fn get_main_camera(&self) -> Entity {

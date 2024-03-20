@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 use crate::engine::rendering::shaders::ShaderType;
 
 use super::{renderer::RenderCmdHd, shaders::{Material, Texture}};
@@ -64,6 +64,8 @@ pub trait GfxApiDevice {
     // ======================
     fn draw_command(&self, command: &RenderCommand);
     fn clear_color(&self);
+    fn update_viewport(&self, x: u32, y: u32, width: u32, height: u32);
+    fn set_update_viewport_callback(&self, window: &mut glfw::Window, viewport: RefCell<glm::Vector4<f32>>);
     fn clear_buffers(&self);
 }
 
@@ -73,7 +75,7 @@ impl GfxDevice {
             instance: device_impl,
             shader_api: shader_impl,
             cmd_ids: 0
-        } 
+        }
     }
 
     pub fn alloc_shader(&self, source: String, s_type: ShaderType) -> u32 { 
@@ -120,6 +122,14 @@ impl GfxDevice {
 
     pub fn draw_command(&self, command: &RenderCommand) {
         self.instance.draw_command(command)
+    }
+
+    pub fn update_viewport(&self, x: u32, y: u32, width: u32, height: u32) {
+        self.instance.update_viewport(x, y, width, height);
+    }
+
+    pub fn set_update_viewport_callback(&self, window: &mut glfw::Window, viewport: RefCell<glm::Vector4<f32>>) {
+        self.instance.set_update_viewport_callback(window, viewport);
     }
 
     pub fn clear(&self) {

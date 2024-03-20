@@ -14,7 +14,7 @@ pub struct Camera {
     pub near: f32,
     pub far: f32,
 
-    pub viewport: (f32, f32), // NDC
+    pub viewport: (f32, f32, f32, f32), // NDC
     pub mode: Projection,
     pub output_target: Option<u128>,
     pub background_color: Option<[f32; 3]>

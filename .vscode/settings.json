@@ -13,5 +13,6 @@
     "rust-analyzer.inlayHints.lifetimeElisionHints.useParameterNames": true,
     "rust-analyzer.inlayHints.rangeExclusiveHints.enable": true,
     "rust-analyzer.inlayHints.typeHints.hideClosureInitialization": true,
-    "rust-analyzer.inlayHints.typeHints.hideNamedConstructor": true
+    "rust-analyzer.inlayHints.typeHints.hideNamedConstructor": true,
+    "editor.fontFamily": "'JetBrains Mono', 'Courier New', monospace"
 }

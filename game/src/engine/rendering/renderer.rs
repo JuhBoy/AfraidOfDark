@@ -99,45 +99,6 @@ impl Renderer {
         // Load all function pointers from the graphic driver
         gl::load_with(|procname: &str| self.window.get_proc_address(procname));
 
-        let callback = self.on_window_resized.clone();
-        let viewport = self.viewport_rect.clone();
-
-        // TODO: 
-        // I'm currently working on trnasfering changes done in the ECS part to the underlying system of rendering (here)
-        // so the update callback must be kill and sent to the opengl side (as it use glViewport() function to update the viewport size)
-        // [] - Update the viewport size in the opengl side
-        // [] - Pass viewport change from ECS to the rendering system
-        // [] - Update Camera changes from ECS to the rendering system via shader_api (uniforms)
-        // [] - Update Transform of SpriteRenderer2D from ECS to the rendering system via shader_api (uniforms)
-        // [] - Adds orthographic projection to the shader_api
-        //
-        let update_viewport_cb = move |window: &mut glfw::Window| {
-            let (scaled_width, scaled_height) = window.get_framebuffer_size();
-
-            let vp_borrow = viewport.borrow();
-            let final_x = scaled_width as f32 * vp_borrow.x;
-            let final_y = scaled_height as f32 * vp_borrow.y;
-            let final_w = scaled_width as f32 * vp_borrow.z;
-            let final_h = scaled_height as f32 * vp_borrow.w;
-
-            unsafe {
-                gl::Viewport(final_x as i32, final_y as i32, final_w as i32, final_h as i32);
-            }
-        };
-        self.window.set_size_callback(move |window: &mut glfw::Window, width: i32, height: i32| {
-            if let Some(callback) = callback {
-                callback(width, height);
-            }
-
-            #[cfg(debug_assertions)] { 
-                let (w_factor, h_factor) = window.get_content_scale();
-                println!("Window screen coords resized: {}x{} (scale factor {}x{})", width, height, w_factor, h_factor);
-            }
-
-            update_viewport_cb(window);
-        });
-        self.window.make_current();
-
         let (scaled_width, scaled_height) = self.window.get_framebuffer_size();
 
         let vp_borrow = self.viewport_rect.borrow();
@@ -146,9 +107,9 @@ impl Renderer {
         let final_w = scaled_width as f32 * vp_borrow.z;
         let final_h = scaled_height as f32 * vp_borrow.w;
 
-        unsafe {
-            gl::Viewport(final_x as i32, final_y as i32, final_w as i32, final_h as i32);
-        }
+        let device = self.gfx_device.as_ref().expect("Graphic device not allocated");
+        device.set_update_viewport_callback(&mut self.window, self.viewport_rect.clone());
+        device.update_viewport(final_x as u32, final_y as u32, final_w as u32, final_h as u32);
     }
 
     pub fn poll_events(&mut self) {
@@ -227,6 +188,24 @@ impl Renderer {
 
     pub fn remove_render_command(&mut self, handle: RenderCmdHd) {
         self.rendering_store.remove_render_command(handle)
+    }
+
+    pub fn update_viewport(&mut self, x: f32, y: f32, width: f32, height: f32) {
+        let mut vp_borrow = self.viewport_rect.borrow_mut();
+        vp_borrow.x = x;
+        vp_borrow.y = y;
+        vp_borrow.z = width;
+        vp_borrow.w = height;
+
+        let (scaled_width, scaled_height) = self.window.get_framebuffer_size();
+
+        let final_x = scaled_width as f32 * vp_borrow.x;
+        let final_y = scaled_height as f32 * vp_borrow.y;
+        let final_w = scaled_width as f32 * vp_borrow.z;
+        let final_h = scaled_height as f32 * vp_borrow.w;
+
+        let device = self.gfx_device.as_ref().expect("Graphic device not allocated");
+        device.update_viewport(final_x as u32, final_y as u32, final_w as u32, final_h as u32);
     }
 
     pub fn render(&mut self, _delta_time: f32) {

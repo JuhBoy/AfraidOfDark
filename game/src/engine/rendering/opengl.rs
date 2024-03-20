@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::mem::size_of;
 use std::ptr;
 use gl::types::{GLsizei, GLsizeiptr};
@@ -180,6 +181,34 @@ impl GfxApiDevice for GfxDeviceOpengl {
         unsafe {
             gl::ClearColor(0f32, 0f32, 0f32, 1.0f32);
         }
+    }
+
+    fn update_viewport(&self, x: u32, y: u32, width: u32, height: u32) {
+        unsafe {
+            gl::Viewport(x as i32, y as i32, width as i32, height as i32);
+        }
+    }
+
+    fn set_update_viewport_callback(&self, window: &mut glfw::Window, viewport: RefCell<glm::Vector4<f32>>) {
+        window.set_size_callback(move |window: &mut glfw::Window, w: i32, h: i32| {
+            let (scaled_width, scaled_height) = window.get_framebuffer_size();
+
+            let vp_borrow = viewport.borrow();
+            let final_x = scaled_width as f32 * vp_borrow.x;
+            let final_y = scaled_height as f32 * vp_borrow.y;
+            let final_w = scaled_width as f32 * vp_borrow.z;
+            let final_h = scaled_height as f32 * vp_borrow.w;
+
+            #[cfg(debug_assertions)] {
+                let (w_factor, h_factor) = window.get_content_scale();
+                println!("Window screen coords resized: {}x{} (scale factor {}x{})", w, h, w_factor, h_factor);
+            }
+
+            unsafe {
+                gl::Viewport(final_x as i32, final_y as i32, final_w as i32, final_h as i32);
+                gl::Viewport(final_x as i32, final_y as i32, final_w as i32, final_h as i32);
+            }
+        });
     }
 
     fn clear_buffers(&self) {
