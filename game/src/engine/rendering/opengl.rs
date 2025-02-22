@@ -51,10 +51,10 @@ impl GfxApiDevice for GfxDeviceOpengl {
         shader_handle
     }
 
-    fn alloc_shader_module(&self, vertex: u32, frag: u32, delete_shader: Option<bool>) -> ShaderModule {
+    fn alloc_shader_module(&self, vertex: u32, frag: u32, material: &Material) -> ShaderModule {
         #[allow(unused)]
         let mut program_handle = 0u32;
-        let delete_shader = delete_shader.unwrap_or(false);
+        let delete_shader: bool = true; // @todo: create a config for this
 
         let mut frag_hd = Option::from(frag);
         let mut vert_hd = Option::from(vertex);
@@ -71,6 +71,12 @@ impl GfxApiDevice for GfxDeviceOpengl {
                 frag_hd = None;
                 vert_hd = None;
             }
+
+						let mut linked = 0;
+						gl::GetProgramiv(program_handle, gl::LINK_STATUS, &mut linked);
+						if linked == 0 {
+								println!("[OpenGL Shader Link] Shader program is not linked!");
+						}
         }
 
         ShaderModule {
@@ -78,13 +84,7 @@ impl GfxApiDevice for GfxDeviceOpengl {
             fragment_handle: frag_hd,
             vertex_handle: vert_hd,
             texture_hadles: vec![],
-            material: Material {
-                color: glm::vec4(1f32 ,1f32 ,1f32 , 1f32),
-                render_priority: 0,
-                main_texture: Option::from(String::from("[[default_sprite_2d]]")),
-                shaders: ShaderPack { vertex: None, fragment: None },
-                pixel_per_unit: 100
-            }
+            material: material.clone()
         }
     }
 

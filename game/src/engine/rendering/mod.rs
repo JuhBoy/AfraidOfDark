@@ -1,4 +1,5 @@
 pub mod renderer;
+pub mod renderer_helpers;
 pub mod shaders;
 pub mod gfx_device;
 pub mod opengl;

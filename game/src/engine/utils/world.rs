@@ -1,14 +1,13 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
 
 use bevy_ecs::entity::Entity;
 
 use crate::engine::ecs::components::{Camera, Transform};
 use crate::engine::ecs::components::Projection;
 use crate::engine::rendering::renderer::{MeshInfo, RenderCmdHd, RenderRequest, Renderer };
-use crate::engine::rendering::shaders::Material;
+use crate::engine::rendering::renderer_helpers::prepare_material;
 use crate::engine::ecs::{ time::RenderingResourcesContainer, components::SpriteRenderer2D };
 
 pub struct World {
@@ -48,7 +47,7 @@ impl World {
                         count: 0,
                         vertices_set: None,
                     },
-                    material: comp.material.clone().unwrap_or(Arc::new(Material::default(comp.texture.clone()))),
+                    material: prepare_material(comp, comp.material.as_ref()),
                 });
 
                 let links_len: usize = self.rhandle_links.borrow().len();

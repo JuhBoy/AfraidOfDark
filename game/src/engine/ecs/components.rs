@@ -51,7 +51,8 @@ pub struct Transform {
 #[derive(Component, Debug, Default)]
 pub struct SpriteRenderer2D {
     pub texture: Option<String>,
-    pub material: Option<Arc<Material>>
+    pub material: Option<Material>,
+		pub preserve_aspect: bool,
 }
 
 #[derive(Component, Debug, Default, Clone, Copy)]

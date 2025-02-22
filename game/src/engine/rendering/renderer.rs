@@ -27,7 +27,7 @@ pub struct MeshInfo {
 
 pub struct RenderRequest {
     pub mesh_info: MeshInfo,
-    pub material: Arc<Material>
+    pub material: Material
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -162,15 +162,17 @@ impl Renderer {
         let vs_hdl = gfx_device.alloc_shader(vs_content, ShaderType::Vertex);
         let fs_hdl = gfx_device.alloc_shader(fs_content, ShaderType::Fragment);
 
-        let mut shader_module = gfx_device.new_shader_module(vs_hdl, fs_hdl);
+        let mut shader_module = gfx_device.alloc_shader_module(vs_hdl, fs_hdl, &render_req.material);
         let buffer_module = gfx_device.alloc_buffer(RendererStorage::load(&render_req.mesh_info), vec![RendererStorage::get_quad_indices()], Option::from(false));
 
-        if let Some(tex_name) = render_req.material.as_ref().main_texture.as_ref() {
+        if let Some(tex_name) = render_req.material.main_texture.as_ref() {
             let texture = self.rendering_store.load_texture(&tex_name).ok().unwrap();
             let texture_handle = gfx_device.shader_api.set_texture(shader_module.self_handle, texture, 0);
             shader_module.texture_hadles.push(texture_handle);
             println!("[Texture Loading] New Texture handle: {}", texture_handle)
         }
+
+				gfx_device.shader_api.set_attribute_color(shader_module.self_handle, "surface_color", shader_module.material.color);
 
         let command: RenderCommand = gfx_device.build_command(shader_module, buffer_module);
         let command_handle = self.rendering_store.store_command(command, true);

@@ -25,20 +25,39 @@ impl GfxApiShader for GfxOpenGLShaderApi {
         unsafe { gl::UseProgram(0); }
     }
 
+		fn set_attribute_color(&self, prog_hdl: u32, identifier: &str, value: glm::Vec4) {
+
+			unsafe { gl::UseProgram(prog_hdl); }
+
+			match self.get_uniform_location(prog_hdl, identifier) {
+				Ok(location) => {
+					let vec: [f32; 4] = *value.as_array();
+					unsafe { gl::Uniform4fv(location, 1, vec.as_ptr()); }
+				},
+				Err(e) => { 
+					println!("[Shader API Error]: {}", e);
+				}
+			}
+		}
+
     fn set_attribute_f32(&self, prog_hdl: u32, identifier: &str, value: f32) {
-        match self.get_uniform_location(prog_hdl, identifier) {
-            Ok(location) => {
-                unsafe {
-                    gl::Uniform1f(location, value);
-                }
-            }
-            Err(e) => {
-                println!("[Shader API Error]: {}", e);
-            }
-        }
+
+			unsafe { gl::UseProgram(prog_hdl); }
+
+			match self.get_uniform_location(prog_hdl, identifier) {
+					Ok(location) => {
+							unsafe { gl::Uniform1f(location, value); }
+					}
+					Err(e) => {
+							println!("[Shader API Error]: {}", e);
+					}
+			}
     }
 
     fn set_attribute_bool(&self, prog_hdl: u32, identifier: &str, value: bool) {
+
+			  unsafe { gl::UseProgram(prog_hdl); }
+
         match self.get_uniform_location(prog_hdl, identifier) {
             Ok(location) => {
                 unsafe {
@@ -89,7 +108,11 @@ impl GfxOpenGLShaderApi {
         unsafe {
             let location: i32 = gl::GetUniformLocation(prog_hdl, c_string.as_ptr());
             if location == -1 {
-                let err = format!("Uniform location not found: {}", identifier);
+								let mut count: i32 = 0;
+								gl::GetProgramiv(prog_hdl, gl::ACTIVE_UNIFORMS, &mut count);
+
+                let err = format!("Uniform location not found: {} (Uniforms count found in shader {})", identifier, count);
+
                 return Err(err);
             }
             Ok(location)

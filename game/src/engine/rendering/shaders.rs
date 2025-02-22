@@ -10,15 +10,15 @@ pub enum ShaderType {
     Fragment
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ShaderInfo {
     pub file_name: String,
     pub load_type: ShaderLoadType,
     pub shader_type: ShaderType
 }
 
-#[derive(Debug)]
-pub struct ShaderPack { 
+#[derive(Debug, Clone)]
+pub struct ShaderPack {
     pub vertex: Option<ShaderInfo>,
     pub fragment: Option<ShaderInfo>
 }
@@ -31,7 +31,7 @@ pub struct Texture {
     pub channels: u32
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Material {
     pub color: glm::Vec4,
     pub render_priority: i8,
@@ -40,8 +40,8 @@ pub struct Material {
     pub pixel_per_unit: u8
 }
 
-impl ShaderInfo { 
-    pub fn default(shader_type: ShaderType) -> ShaderInfo { 
+impl ShaderInfo {
+    pub fn default(shader_type: ShaderType) -> ShaderInfo {
         ShaderInfo {
             file_name: String::from("[[default]]"),
             load_type: ShaderLoadType::OnDemand,
@@ -60,4 +60,14 @@ impl Material {
             pixel_per_unit: 100
         }
     }
+
+		pub fn new() -> Material {
+			Material {
+					color: glm::vec4(1f32, 1f32, 1f32, 1f32),
+					render_priority: 0,
+					main_texture: None,
+					shaders: ShaderPack { vertex: None, fragment: None, },
+					pixel_per_unit: 100,
+			}
+		}
 }

@@ -37,7 +37,7 @@ pub fn late_update_system(_time: Res<Time>, mut query: Query<(&mut SpriteRendere
     //println!("Late update: {}", &time.delta_time);
 
     for (mut sprite, mut checker) in query.iter_mut() { 
-        if checker.accumulated_time > 500 { 
+        if checker.accumulated_time > 500 {
             sprite.texture = Option::from(String::from("Dark/texture_05.png"));
             checker.accumulated_time = 0;
         }
@@ -81,10 +81,7 @@ fn main() {
                 rotation: Rotation::default(),
                 scale: Scale::default(),
             },
-            SpriteRenderer2D {
-                texture: Option::from(String::from("Dark/texture_01.png")),
-                material: None,
-            },
+						SpriteRenderer2D::from(String::from("Red/texture_08.png"), false),
             ChangeChecker { accumulated_time: 0 }
         ));
     }

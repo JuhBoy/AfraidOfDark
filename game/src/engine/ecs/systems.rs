@@ -27,7 +27,7 @@ pub fn add_sprite_2d_system(mut container: ResMut<RenderingResourcesContainer>,
     for (entity, _transform, sprite_renderer_2d) in query.iter_mut() {
         container.new_2d_render.push(entity);
 
-        if let Some(tex) = sprite_renderer_2d.texture.clone() {
+        if let Some(tex) = sprite_renderer_2d.texture.as_ref() {
             println!("[Sprite 2D] Add with texture is {}", tex);
         } else {
             println!("[Sprite 2D] Add without texture");

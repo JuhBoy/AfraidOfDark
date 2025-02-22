@@ -39,6 +39,7 @@ pub trait GfxApiShader {
     fn set_attribute_i32(&self, sp_hdl: u32, _identifier: &str, _value: i32);
     fn set_attribute_f32(&self, sp_hdl: u32, _identifier: &str, _value: f32);
     fn set_attribute_bool(&self, sp_hdl: u32, _identifier: &str, _value: bool);
+		fn set_attribute_color(&self, sp_hdl: u32, _identifier: &str, _value: glm::Vec4);
 
     fn set_texture(&self, sp_hdl: u32, texture: Texture, texture_location: i32) -> u32;
 }
@@ -49,7 +50,7 @@ pub trait GfxApiDevice {
     // Shaders
     // ======================
     fn alloc_shader(&self, source: String, s_type: ShaderType) -> u32;
-    fn alloc_shader_module(&self, vertex: u32, frag: u32, delete_shader: Option<bool>) -> ShaderModule;
+    fn alloc_shader_module(&self, vertex: u32, frag: u32, material: &Material) -> ShaderModule;
     fn release_shader_module(&self, module_handle: u32);
     fn use_shader_module(&self, module_handle: u32);
 
@@ -78,12 +79,12 @@ impl GfxDevice {
         }
     }
 
-    pub fn alloc_shader(&self, source: String, s_type: ShaderType) -> u32 { 
+    pub fn alloc_shader(&self, source: String, s_type: ShaderType) -> u32 {
         self.instance.alloc_shader(source, s_type)
     }
 
-    pub fn new_shader_module(&self, vertex: u32, frag: u32) -> ShaderModule {
-        self.instance.alloc_shader_module(vertex, frag, Option::from(true))
+    pub fn alloc_shader_module(&self, vertex: u32, frag: u32, material: &Material) -> ShaderModule {
+        self.instance.alloc_shader_module(vertex, frag, material)
     }
 
     pub fn use_shader_module(&self, module: &ShaderModule) {
