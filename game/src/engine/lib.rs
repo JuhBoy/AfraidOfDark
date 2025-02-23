@@ -3,9 +3,7 @@ pub mod runtime {
 
     use crate::engine::{
         ecs::{
-            config::{EcsFixedUpdateSchedule, EcsLateUpdateSchedule, EcsUpdateSchedule},
-            systems::{add_camera_2d_system, add_sprite_2d_system, changed_sprite_2d_system, update_camera_settings_system, update_camera_transform_system},
-            time::{RenderingResourcesContainer, Time},
+            components::Inputs, config::{EcsFixedUpdateSchedule, EcsLateUpdateSchedule, EcsUpdateSchedule}, systems::{add_camera_2d_system, add_sprite_2d_system, changed_sprite_2d_system, update_camera_settings_system, update_camera_transform_system}, time::{RenderingResourcesContainer, Time}
         },
         logging::{consts, logs::Logger, logs_traits::LoggerBase},
         rendering::renderer::Renderer,
@@ -84,6 +82,10 @@ pub mod runtime {
                 fixed_delta_time: 0.02f32,
             });
 
+						world.insert_resource::<Inputs>(Inputs { 
+							keyboard: self.renderer.as_ref().unwrap().get_keyboard_inputs()
+						});
+
             world.insert_resource::<RenderingResourcesContainer>(RenderingResourcesContainer {
                 frame: 0f64,
                 new_2d_render: Vec::new(),
@@ -136,6 +138,8 @@ pub mod runtime {
                 let mut time_world = world.resource_mut::<Time>();
                 time_world.delta_time = delta;
                 accumulated_time += delta;
+								time_world.time += delta as f64;
+								time_world.frames = time_world.frames + 1f64;
 
                 // Update game logic once
                 world.run_schedule(EcsUpdateSchedule);

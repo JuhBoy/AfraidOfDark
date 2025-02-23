@@ -8,7 +8,9 @@ files:
 
 // [X] - Update the viewport size in the opengl side
 // [X] - Pass viewport change from ECS to the rendering system
-        [ ] - Test view port changes with a simple game system that respond to a hot key
+// [x] - Add Keyboard input system to handle keyboard events in ECS
+				[x] Writting update_state Keybaord base input system (require to update state from window glfw) 
+// [x] - Test view port changes with a simple game system that respond to a input keys
 // [ ] - Update Camera changes from ECS to the rendering system via shader_api (uniforms)
 // [ ] - Update Transform of SpriteRenderer2D from ECS to the rendering system via shader_api (uniforms)
 // [ ] - Adds orthographic projection to the shader_api

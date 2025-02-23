@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::ffi::CString;
 use std::mem::size_of;
 use std::ptr;
 use gl::types::{GLsizei, GLsizeiptr};
@@ -7,8 +8,6 @@ use crate::engine::rendering::gfx_device;
 use crate::engine::rendering::gfx_device::{BufferModule, RenderCommand, ShaderModule};
 use crate::engine::rendering::shaders::ShaderType;
 use crate::engine::rendering::shaders::Material;
-
-use super::shaders::ShaderPack;
 
 #[derive(Default)]
 pub struct GfxDeviceOpengl;
@@ -30,20 +29,16 @@ impl GfxApiDevice for GfxDeviceOpengl {
                 }
             }
 
-            let cp_src = source.clone();
-            gl::ShaderSource(
-                shader_handle,
-                1,
-                &cp_src.as_ptr().cast(),
-                ptr::null(),
-            );
-            gl::CompileShader(shader_handle);
+						let source_ref: &str = &source;
+            let source_c: CString = CString::new(source_ref).unwrap();
+            gl::ShaderSource(shader_handle, 1, &source_c.as_ptr().cast(), ptr::null());
+						gl::CompileShader(shader_handle);
 
             let mut success: i32 = 0;
             gl::GetShaderiv(shader_handle, gl::COMPILE_STATUS, &mut success);
             if success == 0 { 
-                let mut info_log: Vec<u8> = vec![0; 512];
-                gl::GetShaderInfoLog(shader_handle, 512, ptr::null_mut(), info_log.as_mut_ptr().cast());
+                let mut info_log: Vec<u8> = vec![0; 1024];
+                gl::GetShaderInfoLog(shader_handle, 1024, ptr::null_mut(), info_log.as_mut_ptr().cast());
                 println!("[Shader] Compilation Error: {}", String::from_utf8(info_log).unwrap());
             }
         }

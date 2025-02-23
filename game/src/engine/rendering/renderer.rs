@@ -1,12 +1,11 @@
 use crate::{
     engine::{
-        logging::{consts, logs_traits::LoggerBase},
-        utils::app_settings::WindowSettings,
+        inputs::keyboard::Keyboard, logging::logs_traits::LoggerBase, utils::app_settings::WindowSettings
     },
     WindowMode,
 };
 use glfw::{ffi::glfwInit, Action, Context, Glfw, GlfwReceiver, Key, PWindow, WindowEvent};
-use std::{cell::RefCell, collections::{HashMap, VecDeque}, rc::Rc, sync::Arc};
+use std::{cell::RefCell, collections::{HashMap, VecDeque}, rc::Rc, sync::{Arc, Mutex}};
 use glfw::ffi::glfwWindowHint;
 use crate::engine::rendering::gfx_device::GfxDevice;
 use crate::engine::rendering::opengl::GfxDeviceOpengl;
@@ -34,6 +33,7 @@ pub struct RenderRequest {
 enum RenderState { Opened, Closed }
 
 pub struct Renderer {
+		keyboard_inputs: Arc<Mutex<Keyboard>>,
     rendering_state: RenderState,
     rendering_store: RendererStorage,
     viewport_rect: RefCell<glm::Vector4<f32>>, // x, y, width, height (Range is [0; 1])
@@ -76,6 +76,7 @@ impl Renderer {
             ).expect("Failed to create window");
 
         Self {
+						keyboard_inputs: Arc::from(Mutex::from(Keyboard::new())),
             rendering_state: RenderState::Closed,
             rendering_store: RendererStorage { render_command_storage: HashMap::new(), renderer_queue: VecDeque::new() },
             viewport_rect: RefCell::new(glm::vec4(0.0, 0.0, 1.0, 1.0)),
@@ -112,8 +113,13 @@ impl Renderer {
         device.update_viewport(final_x as u32, final_y as u32, final_w as u32, final_h as u32);
     }
 
+		pub fn get_keyboard_inputs(&self) -> Arc<Mutex<Keyboard>> { self.keyboard_inputs.clone() }
+
     pub fn poll_events(&mut self) {
         self.instance.poll_events();
+				
+				let mut keyboard_inputs = self.keyboard_inputs.lock().unwrap();
+				keyboard_inputs.pre_update_states();
 
         for (_, event) in glfw::flush_messages(&self.events) {
             match event {
@@ -121,19 +127,8 @@ impl Renderer {
                     self.window.set_should_close(true)
                 }
                 _ => match event {
-                    WindowEvent::Key(k, _a, _b, _c) => {
-                        let name: String;
-
-                        if let Some(s) = k.get_name() {
-                            name = s.to_owned();
-                        } else {
-                            name = String::from("unknow touch");
-                        }
-
-                        self.log.info(
-                            consts::ENGINE_RENDERING,
-                            &format!("Key not handled by engine {}", name),
-                        );
+                    WindowEvent::Key(k, _scan_code, action, modifier) => {
+												keyboard_inputs.update_key_state(k, action, modifier);
                     }
                     _ => {}
                 },
@@ -141,7 +136,6 @@ impl Renderer {
         }
     }
 
-    // This is a WIP
     pub fn create_render_command(&mut self, render_req: RenderRequest) -> RenderCmdHd {
         if self.rendering_state == RenderState::Opened {
             println!("Rendering frame has already started, can't add a render command");

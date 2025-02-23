@@ -1,12 +1,18 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
-use bevy_ecs::component::Component;
+use bevy_ecs::{component::Component, system::Resource};
 
-use crate::engine::rendering::{renderer::RenderCmdHd, shaders::Material};
-
+use crate::engine::{
+    inputs::keyboard::Keyboard,
+    rendering::{renderer::RenderCmdHd, shaders::Material},
+};
 
 #[derive(Debug, Default)]
-pub enum Projection { #[default] Orthographic, Perspective }
+pub enum Projection {
+    #[default]
+    Orthographic,
+    Perspective,
+}
 
 #[derive(Component, Debug, Default)]
 pub struct Camera {
@@ -17,7 +23,7 @@ pub struct Camera {
     pub viewport: (f32, f32, f32, f32), // NDC
     pub mode: Projection,
     pub output_target: Option<u128>,
-    pub background_color: Option<[f32; 3]>
+    pub background_color: Option<[f32; 3]>,
 }
 
 #[derive(Component, Debug, Clone, Copy, Default)]
@@ -52,10 +58,15 @@ pub struct Transform {
 pub struct SpriteRenderer2D {
     pub texture: Option<String>,
     pub material: Option<Material>,
-		pub preserve_aspect: bool,
+    pub preserve_aspect: bool,
 }
 
 #[derive(Component, Debug, Default, Clone, Copy)]
 pub struct RendererHandleComponent {
-    pub handle: RenderCmdHd
+    pub handle: RenderCmdHd,
+}
+
+#[derive(Resource, Debug)]
+pub struct Inputs {
+    pub keyboard: Arc<Mutex<Keyboard>>,
 }

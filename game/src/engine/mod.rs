@@ -3,3 +3,4 @@ pub mod logging;
 pub mod utils;
 pub mod rendering;
 pub mod ecs;
+pub mod inputs;
