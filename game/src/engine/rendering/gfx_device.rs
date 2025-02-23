@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 use crate::engine::rendering::shaders::ShaderType;
 
-use super::{renderer::RenderCmdHd, shaders::{Material, Texture}};
+use super::{renderer::{BufferSettings, FrameBuffer, RenderCmdHd}, shaders::{Material, Texture}};
 
 pub struct GfxDevice {
     instance: Rc<dyn GfxApiDevice>,
@@ -14,10 +14,11 @@ pub struct ShaderModule {
     pub self_handle: u32,
     pub vertex_handle: Option<u32>, // they can be deleted already
     pub fragment_handle: Option<u32>, // they can be deleted already
-    pub texture_hadles: Vec<u32>, // Can be empty
+    pub texture_handles: Vec<u32>, // Can be empty
     pub material: Material
 }
 
+#[derive(Debug)]
 pub struct BufferModule {
     pub handle: u32,
     pub buffer_handles: Option<Vec<u32>>,
@@ -57,8 +58,16 @@ pub trait GfxApiDevice {
     // ======================
     // Buffers
     // ======================
-    fn alloc_buffer(&self, vertices_set: Vec<Vec<f32>>, indices: Vec<Vec<u32>>, keep_vertices: Option<bool>) -> BufferModule;
+    fn alloc_buffer(&self, vertices_set: Vec<Vec<f32>>, indices: Vec<Vec<u32>>, settings: BufferSettings) -> BufferModule;
     fn release_buffer(&self, module: BufferModule);
+		fn alloc_framebuffer(&self, width: i32, height: i32) -> Result<FrameBuffer, &str>;
+		fn use_framebuffer(&self, framebuffer: Option<&FrameBuffer>);
+		fn blit_main_framebuffer(&self, framebuffer: &FrameBuffer);
+
+		// ======================
+		// Textures
+		// ======================
+		fn alloc_framebuffer_texture(&self, width: i32, height: i32) -> u32;
 
     // ======================
     // Drawing
@@ -79,6 +88,18 @@ impl GfxDevice {
         }
     }
 
+		pub fn use_framebuffer(&self, framebuffer: Option<&FrameBuffer>) { 
+			self.instance.use_framebuffer(framebuffer);
+		}
+
+		pub fn blit_main_framebuffer(&self, framebuffer: &FrameBuffer) {
+			self.instance.blit_main_framebuffer(framebuffer);
+		}
+
+		pub fn alloc_framebuffer(&self, width: i32, height: i32) -> FrameBuffer {
+			self.instance.alloc_framebuffer(width, height).expect(&format!("[Gfx Device] Failed to allocate framebuffer (w: {}, h: {})", width, height))
+		}
+
     pub fn alloc_shader(&self, source: String, s_type: ShaderType) -> u32 {
         self.instance.alloc_shader(source, s_type)
     }
@@ -98,8 +119,8 @@ impl GfxDevice {
     // ======================
     // Buffers
     // ======================
-    pub fn alloc_buffer(&self, vertices_set: Vec<Vec<f32>>, indices: Vec<Vec<u32>>, keep_vertices: Option<bool>) -> BufferModule {
-        self.instance.alloc_buffer(vertices_set, indices, keep_vertices)
+    pub fn alloc_buffer(&self, vertices_set: Vec<Vec<f32>>, indices: Vec<Vec<u32>>, settings: BufferSettings) -> BufferModule {
+        self.instance.alloc_buffer(vertices_set, indices, settings)
     }
 
     pub fn release_buffer(&self, module: BufferModule) {

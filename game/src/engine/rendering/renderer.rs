@@ -10,13 +10,29 @@ use glfw::ffi::glfwWindowHint;
 use crate::engine::rendering::gfx_device::GfxDevice;
 use crate::engine::rendering::opengl::GfxDeviceOpengl;
 
-use super::{gfx_device::RenderCommand, gfx_opengl_shaders::GfxOpenGLShaderApi, renderer_storage::RendererStorage, shaders::{Material, ShaderInfo, ShaderType}};
+use super::{gfx_device::{BufferModule, RenderCommand, ShaderModule}, gfx_opengl_shaders::GfxOpenGLShaderApi, renderer_storage::RendererStorage, shaders::{Material, ShaderInfo, ShaderType}};
 
 pub type OnWindowResizedCb = dyn FnMut(&mut glfw::Window, i32, i32);
 pub type RenderCmdHd = u128;
 
 extern crate gl;
 extern crate glfw;
+
+#[derive(Debug)]
+pub struct BufferSettings { 
+	pub keep_vertices: bool,
+	pub vertex_size: i32,
+	pub uvs_size: i32,
+}
+
+#[derive(Debug)]
+pub struct FrameBuffer {
+	pub self_handle: u32,
+	pub texture_attachement: u32,
+	pub buffer_module: BufferModule,
+	pub width: i32,
+	pub height: i32,
+}
 
 pub struct MeshInfo {
     pub file_path: Option<String>,
@@ -37,6 +53,9 @@ pub struct Renderer {
     rendering_state: RenderState,
     rendering_store: RendererStorage,
     viewport_rect: RefCell<glm::Vector4<f32>>, // x, y, width, height (Range is [0; 1])
+
+		main_framebuffer: Option<FrameBuffer>,
+		main_framebuffer_module: Option<ShaderModule>,
 
     pub instance: Glfw,
     pub window: PWindow,
@@ -81,6 +100,9 @@ impl Renderer {
             rendering_store: RendererStorage { render_command_storage: HashMap::new(), renderer_queue: VecDeque::new() },
             viewport_rect: RefCell::new(glm::vec4(0.0, 0.0, 1.0, 1.0)),
 
+						main_framebuffer: None,
+						main_framebuffer_module: None,
+
             instance,
             window,
             events,
@@ -111,13 +133,29 @@ impl Renderer {
         let device = self.gfx_device.as_ref().expect("Graphic device not allocated");
         device.set_update_viewport_callback(&mut self.window, self.viewport_rect.clone());
         device.update_viewport(final_x as u32, final_y as u32, final_w as u32, final_h as u32);
+
+				// Alloc the main framebuffer for post process, it will blit to the screen buffer
+				let frame_buffer: FrameBuffer = device.alloc_framebuffer(scaled_width, scaled_height);
+
+				// allocate base shaders and programs to show the main framebuffer quad to the whole screen
+				let vertex_info = ShaderInfo { file_name: String::from("framebuffer_vertex.shader"), shader_type: ShaderType::Vertex, load_type: super::shaders::ShaderLoadType::OnDemand };
+				let fragment_info = ShaderInfo { file_name: String::from("framebuffer_fragment.shader"), shader_type: ShaderType::Fragment, load_type: super::shaders::ShaderLoadType::OnDemand };
+				let vert_source = self.rendering_store.load_shader_content(&vertex_info).expect("Failed to create shader");
+				let frag_source = self.rendering_store.load_shader_content(&fragment_info).expect("Failed to create shader");
+				let vert_hdl = device.alloc_shader(vert_source, ShaderType::Vertex);
+				let frag_hdl = device.alloc_shader(frag_source, ShaderType::Fragment);
+				let shader_module = device.alloc_shader_module(vert_hdl, frag_hdl, &Material::new());
+
+				// store the main framebuffer to self
+				self.main_framebuffer = Option::from(frame_buffer);
+				self.main_framebuffer_module = Option::from(shader_module);
     }
 
 		pub fn get_keyboard_inputs(&self) -> Arc<Mutex<Keyboard>> { self.keyboard_inputs.clone() }
 
     pub fn poll_events(&mut self) {
         self.instance.poll_events();
-				
+
 				let mut keyboard_inputs = self.keyboard_inputs.lock().unwrap();
 				keyboard_inputs.pre_update_states();
 
@@ -157,12 +195,13 @@ impl Renderer {
         let fs_hdl = gfx_device.alloc_shader(fs_content, ShaderType::Fragment);
 
         let mut shader_module = gfx_device.alloc_shader_module(vs_hdl, fs_hdl, &render_req.material);
-        let buffer_module = gfx_device.alloc_buffer(RendererStorage::load(&render_req.mesh_info), vec![RendererStorage::get_quad_indices()], Option::from(false));
+				let buffer_settings = BufferSettings { keep_vertices: false, vertex_size: 3, uvs_size: 2 };
+        let buffer_module = gfx_device.alloc_buffer(RendererStorage::load(&render_req.mesh_info), vec![RendererStorage::get_quad_indices()], buffer_settings);
 
         if let Some(tex_name) = render_req.material.main_texture.as_ref() {
             let texture = self.rendering_store.load_texture(&tex_name).ok().unwrap();
             let texture_handle = gfx_device.shader_api.set_texture(shader_module.self_handle, texture, 0);
-            shader_module.texture_hadles.push(texture_handle);
+            shader_module.texture_handles.push(texture_handle);
             println!("[Texture Loading] New Texture handle: {}", texture_handle)
         }
 
@@ -210,6 +249,8 @@ impl Renderer {
 
         // Render here
         let gfx_device = self.gfx_device.as_ref().expect("Graphic device not allocated");
+
+				gfx_device.use_framebuffer(Option::from(&self.main_framebuffer));
         gfx_device.clear();
 
         // rendering_pass. WIP -> will be multithreaded at end
@@ -220,6 +261,13 @@ impl Renderer {
                 gfx_device.draw_command(&command);
             }
         }
+
+				// Back to screen buffer
+				gfx_device.use_framebuffer(None);
+				gfx_device.clear();
+
+				gfx_device.use_shader_module(self.main_framebuffer_module.as_ref().unwrap());
+				gfx_device.blit_main_framebuffer(self.main_framebuffer.as_ref().unwrap());
 
         self.window.swap_buffers();
         self.poll_events();

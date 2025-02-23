@@ -32,6 +32,17 @@ const SQUARE_WITH_UVS: [f32; 20] = [
     -1.0f32,   1.0f32, 0.0f32,   0.0f32, 1.0f32,   // bottom left
 ];
 
+const SQUARE_2D_WITH_UVS: [f32; 24] = [
+	// 2D positions		 // Tex coords
+	-1.0f32,  1.0f32,  0.0f32, 1.0f32,
+	-1.0f32, -1.0f32,  0.0f32, 0.0f32,
+	 1.0f32, -1.0f32,  1.0f32, 0.0f32,
+
+	-1.0f32,  1.0f32,  0.0f32, 1.0f32,
+	 1.0f32, -1.0f32,  1.0f32, 0.0f32,
+	 1.0f32,  1.0f32,  1.0f32, 1.0f32
+];
+
 #[allow(dead_code)]
 const INDICES: [u32; 6] = [
     0, 1, 3,
@@ -51,6 +62,10 @@ impl RendererStorage {
     
         vertices
     }
+
+		pub fn load_2d_quad() -> Vec<f32> {
+			SQUARE_2D_WITH_UVS.to_vec()
+		}
 
     pub fn get_quad_indices() -> Vec<u32> {
         INDICES.to_vec()
@@ -105,10 +120,9 @@ impl RendererStorage {
 
         FileSystem::load_file(&file_name, FileType::Shader)
     }
-    
+
     pub fn load_texture(&self, texture_name: &str) -> Result<Texture, String> {
         #[cfg(debug_assertions)]
-        
         let tex = FileSystem::load_texture(&texture_name);
 
         if let Some(texture) = tex.as_ref().ok() {

@@ -1,18 +1,99 @@
+use crate::engine::rendering::gfx_device;
+use crate::engine::rendering::gfx_device::{BufferModule, RenderCommand, ShaderModule};
+use crate::engine::rendering::shaders::Material;
+use crate::engine::rendering::shaders::ShaderType;
+use gfx_device::GfxApiDevice;
+use gl::types::{GLsizei, GLsizeiptr};
 use std::cell::RefCell;
 use std::ffi::CString;
 use std::mem::size_of;
 use std::ptr;
-use gl::types::{GLsizei, GLsizeiptr};
-use gfx_device::GfxApiDevice;
-use crate::engine::rendering::gfx_device;
-use crate::engine::rendering::gfx_device::{BufferModule, RenderCommand, ShaderModule};
-use crate::engine::rendering::shaders::ShaderType;
-use crate::engine::rendering::shaders::Material;
+
+use super::renderer::{BufferSettings, FrameBuffer, MeshInfo};
+use super::renderer_storage::RendererStorage;
 
 #[derive(Default)]
 pub struct GfxDeviceOpengl;
 
 impl GfxApiDevice for GfxDeviceOpengl {
+    fn use_framebuffer(&self, framebuffer: Option<&FrameBuffer>) {
+        let mut handle: u32 = 0;
+
+        if let Some(fbo) = framebuffer {
+            handle = fbo.self_handle;
+        }
+
+        unsafe {
+            gl::BindFramebuffer(gl::FRAMEBUFFER, handle);
+
+            // @warning: maybe a shortcut here.. if the framebuffer is empty then we assume it's bliting the main framebuffer to the screen
+            if framebuffer.is_none() {
+                gl::Enable(gl::DEPTH_TEST);
+            } else {
+                gl::Disable(gl::DEPTH_TEST)
+            }
+        }
+    }
+
+    fn alloc_framebuffer(&self, width: i32, height: i32) -> Result<FrameBuffer, &str> {
+        let mut fbo: u32 = 0;
+        let mut tex_hdl: u32 = 0;
+        let mut rbo_handle: u32 = 0;
+
+        unsafe {
+            gl::GenFramebuffers(1, &mut fbo);
+            gl::BindFramebuffer(gl::FRAMEBUFFER, fbo);
+
+            tex_hdl = self.alloc_framebuffer_texture(width, height);
+            gl::FramebufferTexture2D(
+                gl::FRAMEBUFFER,
+                gl::COLOR_ATTACHMENT0,
+                gl::TEXTURE_2D,
+                tex_hdl,
+                0,
+            );
+
+            gl::GenRenderbuffers(1, &mut rbo_handle);
+            gl::BindRenderbuffer(gl::RENDERBUFFER, rbo_handle);
+            gl::RenderbufferStorage(gl::RENDERBUFFER, gl::DEPTH24_STENCIL8, width, height);
+            gl::BindRenderbuffer(gl::FRAMEBUFFER, 0);
+
+            // attach the renderbuffer to the framebuffer
+            gl::FramebufferRenderbuffer(
+                gl::FRAMEBUFFER,
+                gl::DEPTH_STENCIL_ATTACHMENT,
+                gl::RENDERBUFFER,
+                rbo_handle,
+            );
+
+            let fbo_state = gl::CheckFramebufferStatus(gl::FRAMEBUFFER);
+            if fbo_state != gl::FRAMEBUFFER_COMPLETE {
+                println!("[GFX DEVICE] failed to allocate new frame buffer");
+            }
+
+            gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+        }
+
+        // allocate buffer and vao for rendering the quad to screen
+        let buffer_module: BufferModule = self.alloc_buffer(
+            vec![RendererStorage::load_2d_quad()],
+            vec![],
+            BufferSettings {
+                keep_vertices: false,
+                vertex_size: 2,
+                uvs_size: 2,
+            },
+        );
+
+        Ok(FrameBuffer {
+            self_handle: fbo,
+            texture_attachement: tex_hdl,
+            buffer_module,
+            width,
+            height,
+        })
+    }
+
     fn alloc_shader(&self, source: String, s_type: ShaderType) -> u32 {
         #[allow(unused)]
         let mut shader_handle = 0u32;
@@ -21,29 +102,70 @@ impl GfxApiDevice for GfxDeviceOpengl {
             match s_type {
                 ShaderType::Vertex => {
                     shader_handle = gl::CreateShader(gl::VERTEX_SHADER);
-                    println!("[Shader] Vertex handle created: {} \n{}", &shader_handle, &source);
+                    println!(
+                        "[Shader] Vertex handle created: {} \n{}",
+                        &shader_handle, &source
+                    );
                 }
                 ShaderType::Fragment => {
                     shader_handle = gl::CreateShader(gl::FRAGMENT_SHADER);
-                    println!("[Shader] Fragment handle created: {} \n{}", &shader_handle, &source);
+                    println!(
+                        "[Shader] Fragment handle created: {} \n{}",
+                        &shader_handle, &source
+                    );
                 }
             }
 
-						let source_ref: &str = &source;
+            let source_ref: &str = &source;
             let source_c: CString = CString::new(source_ref).unwrap();
             gl::ShaderSource(shader_handle, 1, &source_c.as_ptr().cast(), ptr::null());
-						gl::CompileShader(shader_handle);
+            gl::CompileShader(shader_handle);
 
             let mut success: i32 = 0;
             gl::GetShaderiv(shader_handle, gl::COMPILE_STATUS, &mut success);
-            if success == 0 { 
+            if success == 0 {
                 let mut info_log: Vec<u8> = vec![0; 1024];
-                gl::GetShaderInfoLog(shader_handle, 1024, ptr::null_mut(), info_log.as_mut_ptr().cast());
-                println!("[Shader] Compilation Error: {}", String::from_utf8(info_log).unwrap());
+                gl::GetShaderInfoLog(
+                    shader_handle,
+                    1024,
+                    ptr::null_mut(),
+                    info_log.as_mut_ptr().cast(),
+                );
+                println!(
+                    "[Shader] Compilation Error: {}",
+                    String::from_utf8(info_log).unwrap()
+                );
             }
         }
 
         shader_handle
+    }
+
+    fn alloc_framebuffer_texture(&self, width: i32, height: i32) -> u32 {
+        let mut texture_handle: u32 = 0;
+
+        unsafe {
+            gl::GenTextures(1, &mut texture_handle);
+            gl::BindTexture(gl::TEXTURE_2D, texture_handle);
+
+            gl::TexImage2D(
+                gl::TEXTURE_2D,
+                0i32,
+                gl::RGB as i32,
+                width,
+                height,
+                0i32,
+                gl::RGB,
+                gl::UNSIGNED_BYTE,
+                std::ptr::null(),
+            );
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+
+            gl::BindTexture(gl::TEXTURE_2D, 0);
+        }
+
+        return texture_handle;
     }
 
     fn alloc_shader_module(&self, vertex: u32, frag: u32, material: &Material) -> ShaderModule {
@@ -67,31 +189,38 @@ impl GfxApiDevice for GfxDeviceOpengl {
                 vert_hd = None;
             }
 
-						let mut linked = 0;
-						gl::GetProgramiv(program_handle, gl::LINK_STATUS, &mut linked);
-						if linked == 0 {
-								println!("[OpenGL Shader Link] Shader program is not linked!");
-						}
+            let mut linked = 0;
+            gl::GetProgramiv(program_handle, gl::LINK_STATUS, &mut linked);
+            if linked == 0 {
+                println!("[OpenGL Shader Link] Shader program is not linked!");
+            }
         }
 
         ShaderModule {
             self_handle: program_handle,
             fragment_handle: frag_hd,
             vertex_handle: vert_hd,
-            texture_hadles: vec![],
-            material: material.clone()
+            texture_handles: vec![],
+            material: material.clone(),
         }
     }
 
     fn use_shader_module(&self, module_handle: u32) {
-        unsafe { gl::UseProgram(module_handle); }
+        unsafe {
+            gl::UseProgram(module_handle);
+        }
     }
 
     fn release_shader_module(&self, module_handle: u32) {
         unsafe { gl::DeleteProgram(module_handle) }
     }
 
-    fn alloc_buffer(&self, vertices_set: Vec<Vec<f32>>, indices: Vec<Vec<u32>>, keep_vertices: Option<bool>) -> BufferModule {
+    fn alloc_buffer(
+        &self,
+        vertices_set: Vec<Vec<f32>>,
+        indices: Vec<Vec<u32>>,
+        settings: BufferSettings,
+    ) -> BufferModule {
         let mut vao_handle = 0u32;
         let mut vbo_handles: Vec<u32> = Vec::new();
 
@@ -102,24 +231,52 @@ impl GfxApiDevice for GfxDeviceOpengl {
             for vertex_buffer in &vertices_set {
                 let mut vbo_hd = 0;
                 let buffer_size: usize = size_of::<f32>() * vertex_buffer.len();
-                let vertex_stride: usize = size_of::<f32>() * 5;
+                let vertex_stride: usize =
+                    size_of::<f32>() * (settings.vertex_size + settings.uvs_size) as usize;
 
                 gl::GenBuffers(1, ptr::addr_of_mut!(vbo_hd));
                 gl::BindBuffer(gl::ARRAY_BUFFER, vbo_hd);
-                gl::BufferData(gl::ARRAY_BUFFER, buffer_size as GLsizeiptr, vertex_buffer.as_ptr().cast(), gl::STATIC_DRAW);
+                gl::BufferData(
+                    gl::ARRAY_BUFFER,
+                    buffer_size as GLsizeiptr,
+                    vertex_buffer.as_ptr().cast(),
+                    gl::STATIC_DRAW,
+                );
 
                 // position attribute
-                gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, vertex_stride as GLsizei, ptr::null());
+                gl::VertexAttribPointer(
+                    0,
+                    settings.vertex_size,
+                    gl::FLOAT,
+                    gl::FALSE,
+                    vertex_stride as GLsizei,
+                    ptr::null(),
+                );
                 gl::EnableVertexAttribArray(0);
 
                 // uvs attribute
-                gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, vertex_stride as GLsizei, (3 * size_of::<f32>()) as *const _);
+                gl::VertexAttribPointer(
+                    1,
+                    settings.uvs_size,
+                    gl::FLOAT,
+                    gl::FALSE,
+                    vertex_stride as GLsizei,
+                    ((settings.vertex_size as usize) * size_of::<f32>()) as *const _,
+                );
                 gl::EnableVertexAttribArray(1);
 
-                let mut ebo_hd = 0;
-                gl::GenBuffers(1, ptr::addr_of_mut!(ebo_hd));
-                gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo_hd);
-                gl::BufferData(gl::ELEMENT_ARRAY_BUFFER, (indices[0].len() * size_of::<u32>()) as GLsizeiptr, indices[0].as_ptr().cast(), gl::DYNAMIC_DRAW);
+                if indices.len() > 0 {
+                    // @todo: this need to be stored to prevent memory leaks (EBO dispose)
+                    let mut ebo_hd = 0;
+                    gl::GenBuffers(1, ptr::addr_of_mut!(ebo_hd));
+                    gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo_hd);
+                    gl::BufferData(
+                        gl::ELEMENT_ARRAY_BUFFER,
+                        (indices[0].len() * size_of::<u32>()) as GLsizeiptr,
+                        indices[0].as_ptr().cast(),
+                        gl::DYNAMIC_DRAW,
+                    );
+                }
 
                 vbo_handles.push(vbo_hd as u32);
 
@@ -133,8 +290,12 @@ impl GfxApiDevice for GfxDeviceOpengl {
             handle: vao_handle,
             buffer_handles: Option::from(vbo_handles),
             buffer_attributes: None,
-            vertices: if keep_vertices.is_some() { Option::from(vertices_set) } else { None },
-            vertices_count: Option::from(buffers_sizes)
+            vertices: if settings.keep_vertices {
+                Option::from(vertices_set)
+            } else {
+                None
+            },
+            vertices_count: Option::from(buffers_sizes),
         }
     }
 
@@ -156,12 +317,23 @@ impl GfxApiDevice for GfxDeviceOpengl {
             gl::PolygonMode(gl::FRONT, gl::FILL);
             gl::PolygonMode(gl::BACK, gl::LINE);
 
-            command.shader_module.texture_hadles.iter().enumerate().for_each(|(i, x)| {
-                gl::ActiveTexture(gl::TEXTURE0 + i as u32);
-                gl::BindTexture(gl::TEXTURE_2D, *x);
-            });
+            command
+                .shader_module
+                .texture_handles
+                .iter()
+                .enumerate()
+                .for_each(|(i, x)| {
+                    gl::ActiveTexture(gl::TEXTURE0 + i as u32);
+                    gl::BindTexture(gl::TEXTURE_2D, *x);
+                });
 
-            for buffer in command.buffer_module.buffer_handles.as_ref().unwrap().iter() {
+            for buffer in command
+                .buffer_module
+                .buffer_handles
+                .as_ref()
+                .unwrap()
+                .iter()
+            {
                 gl::BindBuffer(gl::ARRAY_BUFFER, *buffer);
                 gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
             }
@@ -169,6 +341,14 @@ impl GfxApiDevice for GfxDeviceOpengl {
             gl::BindVertexArray(0);
             gl::BindTexture(gl::TEXTURE_2D, 0);
             gl::BindBuffer(gl::ARRAY_BUFFER, 0);
+        }
+    }
+
+    fn blit_main_framebuffer(&self, framebuffer: &FrameBuffer) {
+        unsafe {
+            gl::BindVertexArray(framebuffer.buffer_module.handle);
+            gl::BindTexture(gl::TEXTURE_2D, framebuffer.texture_attachement);
+            gl::DrawArrays(gl::TRIANGLES, 0, 6);
         }
     }
 
@@ -184,7 +364,11 @@ impl GfxApiDevice for GfxDeviceOpengl {
         }
     }
 
-    fn set_update_viewport_callback(&self, window: &mut glfw::Window, viewport: RefCell<glm::Vector4<f32>>) {
+    fn set_update_viewport_callback(
+        &self,
+        window: &mut glfw::Window,
+        viewport: RefCell<glm::Vector4<f32>>,
+    ) {
         window.set_size_callback(move |window: &mut glfw::Window, w: i32, h: i32| {
             let (scaled_width, scaled_height) = window.get_framebuffer_size();
 
@@ -194,14 +378,28 @@ impl GfxApiDevice for GfxDeviceOpengl {
             let final_w = scaled_width as f32 * vp_borrow.z;
             let final_h = scaled_height as f32 * vp_borrow.w;
 
-            #[cfg(debug_assertions)] {
+            #[cfg(debug_assertions)]
+            {
                 let (w_factor, h_factor) = window.get_content_scale();
-                println!("Window screen coords resized: {}x{} (scale factor {}x{})", w, h, w_factor, h_factor);
+                println!(
+                    "Window screen coords resized: {}x{} (scale factor {}x{})",
+                    w, h, w_factor, h_factor
+                );
             }
 
             unsafe {
-                gl::Viewport(final_x as i32, final_y as i32, final_w as i32, final_h as i32);
-                gl::Viewport(final_x as i32, final_y as i32, final_w as i32, final_h as i32);
+                gl::Viewport(
+                    final_x as i32,
+                    final_y as i32,
+                    final_w as i32,
+                    final_h as i32,
+                );
+                gl::Viewport(
+                    final_x as i32,
+                    final_y as i32,
+                    final_w as i32,
+                    final_h as i32,
+                );
             }
         });
     }

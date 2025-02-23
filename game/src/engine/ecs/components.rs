@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use bevy_ecs::{component::Component, system::Resource};
+use bevy_ecs::{component::Component, entity::Entity, system::Resource};
 
 use crate::engine::{
     inputs::keyboard::Keyboard,
@@ -69,4 +69,9 @@ pub struct RendererHandleComponent {
 #[derive(Resource, Debug)]
 pub struct Inputs {
     pub keyboard: Arc<Mutex<Keyboard>>,
+}
+
+#[derive(Resource, Debug)]
+pub struct CameraBinding {
+		pub cameras: Vec<(Entity, u32)>, // The entity camera and its associated framebuffer ojbect
 }
