@@ -9,7 +9,7 @@ use std::ffi::CString;
 use std::mem::size_of;
 use std::ptr;
 
-use super::renderer::{BufferSettings, FrameBuffer, MeshInfo};
+use super::components::{BufferSettings, FrameBuffer};
 use super::renderer_storage::RendererStorage;
 
 #[derive(Default)]
@@ -388,12 +388,6 @@ impl GfxApiDevice for GfxDeviceOpengl {
             }
 
             unsafe {
-                gl::Viewport(
-                    final_x as i32,
-                    final_y as i32,
-                    final_w as i32,
-                    final_h as i32,
-                );
                 gl::Viewport(
                     final_x as i32,
                     final_y as i32,

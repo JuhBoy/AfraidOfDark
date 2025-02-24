@@ -1,6 +1,8 @@
+use std::cell::RefCell;
+
 use crate::engine::ecs::components::SpriteRenderer2D;
 
-use super::shaders::{Material, ShaderPack};
+use super::{components::Rect, shaders::{Material, ShaderPack}};
 
 pub fn prepare_material(sprite: &SpriteRenderer2D, material: Option<&Material>) -> Material {
     let sprite_texture = sprite.texture.clone();
@@ -22,4 +24,20 @@ pub fn prepare_material(sprite: &SpriteRenderer2D, material: Option<&Material>) 
         shaders: ShaderPack { vertex: None, fragment: None },
         pixel_per_unit: 100,
     };
+}
+
+pub fn compute_gfx_viewport_rect(viewport: &glm::Vector4<f32>, window: &glfw::Window) -> Rect<u32> {
+        let (scaled_width, scaled_height) = window.get_framebuffer_size();
+
+        let final_x = scaled_width as f32 * viewport.x;
+        let final_y = scaled_height as f32 * viewport.y;
+        let final_w = scaled_width as f32 * viewport.z;
+        let final_h = scaled_height as f32 * viewport.w;
+
+        Rect {
+            x: final_x as u32,
+            y: final_y as u32,
+            width: final_w as u32,
+            height: final_h as u32,
+        }
 }

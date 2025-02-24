@@ -6,7 +6,8 @@ use bevy_ecs::entity::Entity;
 
 use crate::engine::ecs::components::{Camera, Transform};
 use crate::engine::ecs::components::Projection;
-use crate::engine::rendering::renderer::{MeshInfo, RenderCmdHd, RenderRequest, Renderer };
+use crate::engine::rendering::components::{MeshInfo, RenderRequest};
+use crate::engine::rendering::renderer::{RenderCmdHd, Renderer };
 use crate::engine::rendering::renderer_helpers::prepare_material;
 use crate::engine::ecs::{ time::RenderingResourcesContainer, components::SpriteRenderer2D };
 

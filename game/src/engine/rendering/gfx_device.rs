@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 use crate::engine::rendering::shaders::ShaderType;
 
-use super::{renderer::{BufferSettings, FrameBuffer, RenderCmdHd}, shaders::{Material, Texture}};
+use super::{components::{BufferSettings, FrameBuffer, Rect}, renderer::RenderCmdHd, shaders::{Material, Texture}};
 
 pub struct GfxDevice {
     instance: Rc<dyn GfxApiDevice>,
@@ -146,8 +146,8 @@ impl GfxDevice {
         self.instance.draw_command(command)
     }
 
-    pub fn update_viewport(&self, x: u32, y: u32, width: u32, height: u32) {
-        self.instance.update_viewport(x, y, width, height);
+    pub fn update_viewport(&self, vp_rect: Rect<u32>) {
+        self.instance.update_viewport(vp_rect.x, vp_rect.y, vp_rect.width, vp_rect.height);
     }
 
     pub fn set_update_viewport_callback(&self, window: &mut glfw::Window, viewport: RefCell<glm::Vector4<f32>>) {

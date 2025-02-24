@@ -7,8 +7,7 @@ use crate::engine::utils::file_system::FileType;
 use crate::engine::rendering::shaders::Texture;
 
 use super::{
-    gfx_device::RenderCommand,
-    renderer::{MeshInfo, RenderCmdHd}, shaders::ShaderInfo,
+    components::MeshInfo, gfx_device::RenderCommand, renderer::RenderCmdHd, shaders::ShaderInfo
 };
 
 #[allow(dead_code)]
