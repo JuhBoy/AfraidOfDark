@@ -1,4 +1,4 @@
-use super::{gfx_device::BufferModule, shaders::Material};
+use super::shaders::Material;
 
 #[derive(Debug)]
 pub struct BufferSettings {
@@ -11,7 +11,6 @@ pub struct BufferSettings {
 pub struct FrameBuffer {
     pub self_handle: u32,
     pub texture_attachement: u32,
-    pub buffer_module: BufferModule,
     pub width: i32,
     pub height: i32,
 }

@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 use crate::engine::ecs::components::SpriteRenderer2D;
 
 use super::{components::Rect, shaders::{Material, ShaderPack}};
@@ -29,10 +27,10 @@ pub fn prepare_material(sprite: &SpriteRenderer2D, material: Option<&Material>) 
 pub fn compute_gfx_viewport_rect(viewport: &glm::Vector4<f32>, window: &glfw::Window) -> Rect<u32> {
         let (scaled_width, scaled_height) = window.get_framebuffer_size();
 
-        let final_x = scaled_width as f32 * viewport.x;
-        let final_y = scaled_height as f32 * viewport.y;
-        let final_w = scaled_width as f32 * viewport.z;
-        let final_h = scaled_height as f32 * viewport.w;
+        let final_x: f32 = scaled_width as f32 * viewport.x;
+        let final_y: f32 = scaled_height as f32 * viewport.y;
+        let final_w: f32 = scaled_width as f32 * viewport.z;
+        let final_h: f32 = scaled_height as f32 * viewport.w;
 
         Rect {
             x: final_x as u32,

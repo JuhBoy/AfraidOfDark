@@ -18,6 +18,7 @@ use std::{
 };
 
 use super::components::Rect;
+use super::gfx_device::BufferModule;
 use super::renderer_helpers::compute_gfx_viewport_rect;
 use super::{
     components::{BufferSettings, FrameBuffer, RenderRequest, RenderState},
@@ -40,7 +41,8 @@ pub struct Renderer {
     viewport_rect: RefCell<glm::Vector4<f32>>, // x, y, width, height (Range is [0; 1])
 
     main_framebuffer: Option<FrameBuffer>,
-    main_framebuffer_module: Option<ShaderModule>,
+    screen_shader_module: Option<ShaderModule>,
+    screen_quad_buffer: Option<BufferModule>,
 
     pub instance: Glfw,
     pub window: PWindow,
@@ -90,7 +92,8 @@ impl Renderer {
             viewport_rect: RefCell::new(glm::vec4(0.0, 0.0, 1.0, 1.0)),
 
             main_framebuffer: None,
-            main_framebuffer_module: None,
+            screen_shader_module: None,
+						screen_quad_buffer: None,
 
             instance,
             window,
@@ -114,18 +117,18 @@ impl Renderer {
         let (scaled_width, scaled_height) = self.window.get_framebuffer_size();
 
         let vp_borrow = self.viewport_rect.borrow();
-        let final_x = scaled_width as f32 * vp_borrow.x;
-        let final_y = scaled_height as f32 * vp_borrow.y;
-        let final_w = scaled_width as f32 * vp_borrow.z;
-        let final_h = scaled_height as f32 * vp_borrow.w;
-				let rect: Rect<u32> = Rect { 
-					x: final_x as u32,
-					y: final_y as u32,
-					width: final_w as u32,
-					height: final_h as u32,
-				};
+        let final_x: f32 = scaled_width as f32 * vp_borrow.x;
+        let final_y: f32 = scaled_height as f32 * vp_borrow.y;
+        let final_w: f32 = scaled_width as f32 * vp_borrow.z;
+        let final_h: f32 = scaled_height as f32 * vp_borrow.w;
+        let rect: Rect<u32> = Rect {
+            x: final_x as u32,
+            y: final_y as u32,
+            width: final_w as u32,
+            height: final_h as u32,
+        };
 
-        let device = self
+        let device: &Box<GfxDevice> = self
             .gfx_device
             .as_ref()
             .expect("Graphic device not allocated");
@@ -158,9 +161,21 @@ impl Renderer {
         let frag_hdl = device.alloc_shader(frag_source, ShaderType::Fragment);
         let shader_module = device.alloc_shader_module(vert_hdl, frag_hdl, &Material::new());
 
+        // Alloc the quand buffer used to draw the entire viewport
+        let screen_quad: BufferModule = device.alloc_buffer(
+            vec![RendererStorage::load_2d_quad()],
+            vec![],
+            BufferSettings {
+                keep_vertices: false,
+                vertex_size: 2,
+                uvs_size: 2,
+            },
+        );
+
         // store the main framebuffer to self
         self.main_framebuffer = Option::from(frame_buffer);
-        self.main_framebuffer_module = Option::from(shader_module);
+        self.screen_shader_module = Option::from(shader_module);
+        self.screen_quad_buffer = Option::from(screen_quad);
     }
 
     pub fn get_keyboard_inputs(&self) -> Arc<Mutex<Keyboard>> {
@@ -275,10 +290,10 @@ impl Renderer {
     }
 
     pub fn update_viewport(&mut self, x: f32, y: f32, width: f32, height: f32) {
-			// Update the viewport on CPU side for now
+        // Update the viewport on CPU side for now
         let mut vp_borrow = self.viewport_rect.borrow_mut();
 
-				vp_borrow.x = x;
+        vp_borrow.x = x;
         vp_borrow.y = y;
         vp_borrow.z = width;
         vp_borrow.w = height;
@@ -294,9 +309,14 @@ impl Renderer {
             .as_ref()
             .expect("Graphic device not allocated");
 
-				// Updates to default viewport before drawing the scene into the main buffer texture
-				let default_viewport: glm::Vector4<f32> = Vector4 { x: 0f32, y: 0f32, z: 1f32, w: 1f32 };
-				let viewport: Rect<u32> = compute_gfx_viewport_rect(&default_viewport, &self.window);
+        // Updates to default viewport before drawing the scene into the main buffer texture
+        let default_viewport: glm::Vector4<f32> = Vector4 {
+            x: 0f32,
+            y: 0f32,
+            z: 1f32,
+            w: 1f32,
+        };
+        let viewport: Rect<u32> = compute_gfx_viewport_rect(&default_viewport, &self.window);
         gfx_device.update_viewport(viewport);
 
         gfx_device.use_framebuffer(Option::from(&self.main_framebuffer));
@@ -314,13 +334,17 @@ impl Renderer {
         // Back to screen buffer
         gfx_device.use_framebuffer(None);
         gfx_device.clear();
-				
-				let normalized_screen_viewport = self.viewport_rect.clone().into_inner();
-				let pixel_screen_viewport: Rect<u32> = compute_gfx_viewport_rect(&normalized_screen_viewport, &self.window);
+
+        let normalized_screen_viewport = self.viewport_rect.clone().into_inner();
+        let pixel_screen_viewport: Rect<u32> =
+            compute_gfx_viewport_rect(&normalized_screen_viewport, &self.window);
         gfx_device.update_viewport(pixel_screen_viewport);
 
-        gfx_device.use_shader_module(self.main_framebuffer_module.as_ref().unwrap());
-        gfx_device.blit_main_framebuffer(self.main_framebuffer.as_ref().unwrap());
+        gfx_device.use_shader_module(self.screen_shader_module.as_ref().unwrap());
+        gfx_device.blit_main_framebuffer(
+            self.screen_quad_buffer.as_ref().unwrap(),
+            self.main_framebuffer.as_ref().unwrap(),
+        );
 
         self.window.swap_buffers();
         self.poll_events();

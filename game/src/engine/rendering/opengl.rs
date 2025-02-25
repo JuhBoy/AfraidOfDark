@@ -10,7 +10,6 @@ use std::mem::size_of;
 use std::ptr;
 
 use super::components::{BufferSettings, FrameBuffer};
-use super::renderer_storage::RendererStorage;
 
 #[derive(Default)]
 pub struct GfxDeviceOpengl;
@@ -58,7 +57,7 @@ impl GfxApiDevice for GfxDeviceOpengl {
             gl::RenderbufferStorage(gl::RENDERBUFFER, gl::DEPTH24_STENCIL8, width, height);
             gl::BindRenderbuffer(gl::FRAMEBUFFER, 0);
 
-            // attach the renderbuffer to the framebuffer
+            // Attach the renderbuffer to the framebuffer
             gl::FramebufferRenderbuffer(
                 gl::FRAMEBUFFER,
                 gl::DEPTH_STENCIL_ATTACHMENT,
@@ -74,21 +73,9 @@ impl GfxApiDevice for GfxDeviceOpengl {
             gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
         }
 
-        // allocate buffer and vao for rendering the quad to screen
-        let buffer_module: BufferModule = self.alloc_buffer(
-            vec![RendererStorage::load_2d_quad()],
-            vec![],
-            BufferSettings {
-                keep_vertices: false,
-                vertex_size: 2,
-                uvs_size: 2,
-            },
-        );
-
         Ok(FrameBuffer {
             self_handle: fbo,
             texture_attachement: tex_hdl,
-            buffer_module,
             width,
             height,
         })
@@ -222,20 +209,22 @@ impl GfxApiDevice for GfxDeviceOpengl {
         settings: BufferSettings,
     ) -> BufferModule {
         let mut vao_handle = 0u32;
-        let mut vbo_handles: Vec<u32> = Vec::new();
+        let mut buffer_handles: Vec<u32> = Vec::new();
 
         unsafe {
             gl::GenVertexArrays(1, ptr::addr_of_mut!(vao_handle));
             gl::BindVertexArray(vao_handle);
 
+            let mut i: usize = 0;
+
             for vertex_buffer in &vertices_set {
-                let mut vbo_hd = 0;
+                let mut vbo_handles: u32 = 0;
                 let buffer_size: usize = size_of::<f32>() * vertex_buffer.len();
                 let vertex_stride: usize =
                     size_of::<f32>() * (settings.vertex_size + settings.uvs_size) as usize;
 
-                gl::GenBuffers(1, ptr::addr_of_mut!(vbo_hd));
-                gl::BindBuffer(gl::ARRAY_BUFFER, vbo_hd);
+                gl::GenBuffers(1, ptr::addr_of_mut!(vbo_handles));
+                gl::BindBuffer(gl::ARRAY_BUFFER, vbo_handles);
                 gl::BufferData(
                     gl::ARRAY_BUFFER,
                     buffer_size as GLsizeiptr,
@@ -265,30 +254,36 @@ impl GfxApiDevice for GfxDeviceOpengl {
                 );
                 gl::EnableVertexAttribArray(1);
 
-                if indices.len() > 0 {
-                    // @todo: this need to be stored to prevent memory leaks (EBO dispose)
-                    let mut ebo_hd = 0;
-                    gl::GenBuffers(1, ptr::addr_of_mut!(ebo_hd));
-                    gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo_hd);
+                if indices.len() > i {
+                    let mut ebo_handles: u32 = 0;
+
+                    gl::GenBuffers(1, ptr::addr_of_mut!(ebo_handles));
+                    gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo_handles);
                     gl::BufferData(
                         gl::ELEMENT_ARRAY_BUFFER,
-                        (indices[0].len() * size_of::<u32>()) as GLsizeiptr,
-                        indices[0].as_ptr().cast(),
+                        (indices[i].len() * size_of::<u32>()) as GLsizeiptr,
+                        indices[i].as_ptr().cast(),
                         gl::DYNAMIC_DRAW,
                     );
+
+                    buffer_handles.push(ebo_handles);
                 }
 
-                vbo_handles.push(vbo_hd as u32);
+                buffer_handles.push(vbo_handles);
 
                 gl::BindVertexArray(0);
+                i += 1;
             }
         }
 
-        let buffers_sizes: Vec<u32> = vertices_set.iter().map(|x| x.len() as u32).collect();
+        let buffers_sizes: Vec<u32> = vertices_set
+            .iter()
+            .map(|x: &Vec<f32>| x.len() as u32)
+            .collect();
 
         BufferModule {
             handle: vao_handle,
-            buffer_handles: Option::from(vbo_handles),
+            buffer_handles: Option::from(buffer_handles),
             buffer_attributes: None,
             vertices: if settings.keep_vertices {
                 Option::from(vertices_set)
@@ -344,9 +339,9 @@ impl GfxApiDevice for GfxDeviceOpengl {
         }
     }
 
-    fn blit_main_framebuffer(&self, framebuffer: &FrameBuffer) {
+    fn blit_main_framebuffer(&self, screen_module: &BufferModule, framebuffer: &FrameBuffer) {
         unsafe {
-            gl::BindVertexArray(framebuffer.buffer_module.handle);
+            gl::BindVertexArray(screen_module.handle);
             gl::BindTexture(gl::TEXTURE_2D, framebuffer.texture_attachement);
             gl::DrawArrays(gl::TRIANGLES, 0, 6);
         }
