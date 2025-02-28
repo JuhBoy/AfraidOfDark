@@ -7,7 +7,9 @@ use engine::ecs::config::{EcsFixedUpdateSchedule, EcsLateUpdateSchedule, EcsUpda
 use engine::ecs::time::Time;
 use engine::lib::runtime::App;
 
+use engine::rendering::shaders::Material;
 use engine::utils::app_settings::{ApplicationSettings, WindowMode, WindowSettings};
+use glm::vec4;
 
 use crate::engine::ecs::components::Position;
 
@@ -15,7 +17,9 @@ pub mod engine;
 
 #[derive(bevy_ecs::component::Component)]
 pub struct ChangeChecker {
-    pub accumulated_time: u64,
+    pub accumulated_time: f32,
+    pub color_timer: f32,
+    pub flip_color: bool,
 }
 
 pub fn update_camera(inputs: Res<Inputs>, mut query: Query<(Entity, &mut Camera)>) {
@@ -61,14 +65,30 @@ pub fn late_update_system(
     _time: Res<Time>,
     mut query: Query<(&mut SpriteRenderer2D, &mut ChangeChecker)>,
 ) {
-    //println!("Late update: {}", &time.delta_time);
-
     for (mut sprite, mut checker) in query.iter_mut() {
-        if checker.accumulated_time > 500 {
-            sprite.texture = Option::from(String::from("Dark/texture_05.png"));
-            checker.accumulated_time = 0;
+        let color_white = vec4(1f32, 1f32, 1f32, 1f32);
+        let color_other = vec4(0.1f32, 1f32, 0.8f32, 1f32);
+
+        checker.accumulated_time += _time.delta_time;
+        checker.color_timer += _time.delta_time;
+
+        if checker.accumulated_time >= 2f32 {
+            let number = _time.frames % 9u64;
+            sprite.texture = Option::from(format!("Dark/texture_0{}.png", number));
+            checker.accumulated_time = 0f32;
         }
-        checker.accumulated_time += 1;
+
+        if checker.color_timer >= 2f32 {
+            let color = checker
+                .flip_color
+                .then(|| color_other)
+                .unwrap_or(color_white);
+
+            sprite.material.get_or_insert_with(Material::new).color = color;
+
+            checker.flip_color = !checker.flip_color;
+            checker.color_timer = 0f32;
+        }
     }
 }
 
@@ -114,7 +134,9 @@ fn main() {
             },
             SpriteRenderer2D::from(String::from("Red/texture_08.png"), false),
             ChangeChecker {
-                accumulated_time: 0,
+                accumulated_time: 0f32,
+                color_timer: 0f32,
+                flip_color: false,
             },
         ));
     }

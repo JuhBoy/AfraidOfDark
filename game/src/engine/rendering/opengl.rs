@@ -10,6 +10,7 @@ use std::mem::size_of;
 use std::ptr;
 
 use super::components::{BufferSettings, FrameBuffer};
+use super::shaders::Texture;
 
 #[derive(Default)]
 pub struct GfxDeviceOpengl;
@@ -36,6 +37,7 @@ impl GfxApiDevice for GfxDeviceOpengl {
 
     fn alloc_framebuffer(&self, width: i32, height: i32) -> Result<FrameBuffer, &str> {
         let mut fbo: u32 = 0;
+        #[allow(unused)]
         let mut tex_hdl: u32 = 0;
         let mut rbo_handle: u32 = 0;
 
@@ -353,6 +355,47 @@ impl GfxApiDevice for GfxDeviceOpengl {
         }
     }
 
+    fn alloc_texture(&self, prog_hdl: u32, texture: &Texture) -> u32 {
+        unsafe {
+            gl::UseProgram(prog_hdl);
+
+            let mut tex_hdl: u32 = 0;
+            gl::GenTextures(1, ptr::addr_of_mut!(tex_hdl) as *mut u32);
+            gl::BindTexture(gl::TEXTURE_2D, tex_hdl);
+
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
+
+            let internal_format = if texture.channels == 3 {
+                gl::RGB as i32
+            } else {
+                gl::RGBA as i32
+            };
+            let pixel_format = if texture.channels == 3 {
+                gl::RGB
+            } else {
+                gl::RGBA
+            };
+            gl::TexImage2D(
+                gl::TEXTURE_2D,
+                0,
+                internal_format,
+                texture.width as i32,
+                texture.height as i32,
+                0,
+                pixel_format,
+                gl::UNSIGNED_BYTE,
+                texture.data.as_ptr().cast(),
+            );
+
+            gl::BindTexture(gl::TEXTURE_2D, 0);
+
+            tex_hdl
+        }
+    }
+
     fn update_viewport(&self, x: u32, y: u32, width: u32, height: u32) {
         unsafe {
             gl::Viewport(x as i32, y as i32, width as i32, height as i32);
@@ -396,6 +439,12 @@ impl GfxApiDevice for GfxDeviceOpengl {
     fn clear_buffers(&self) {
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+        }
+    }
+
+    fn release_texture(&self, texture_id: u32) {
+        unsafe {
+            gl::DeleteTextures(1, &texture_id);
         }
     }
 }

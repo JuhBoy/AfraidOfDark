@@ -76,7 +76,7 @@ pub mod runtime {
 
             // Resources
             world.insert_resource::<Time>(Time {
-                frames: 0f64,
+                frames: 0u64,
                 time: 0f64,
                 delta_time: 0.02f32,
                 fixed_delta_time: 0.02f32,
@@ -142,7 +142,7 @@ pub mod runtime {
                 time_world.delta_time = delta;
                 accumulated_time += delta;
 								time_world.time += delta as f64;
-								time_world.frames = time_world.frames + 1f64;
+								time_world.frames = time_world.frames + 1u64;
 
                 // Update game logic once
                 world.run_schedule(EcsUpdateSchedule);

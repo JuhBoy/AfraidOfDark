@@ -4,19 +4,20 @@ use std::ops::{Deref, DerefMut};
 
 use bevy_ecs::entity::Entity;
 
-use crate::engine::ecs::components::{Camera, Transform};
 use crate::engine::ecs::components::Projection;
-use crate::engine::rendering::components::{MeshInfo, RenderRequest};
-use crate::engine::rendering::renderer::{RenderCmdHd, Renderer };
+use crate::engine::ecs::components::{Camera, Transform};
+use crate::engine::ecs::{components::SpriteRenderer2D, time::RenderingResourcesContainer};
+use crate::engine::rendering::components::{MeshInfo, RenderRequest, RenderUpdate};
+use crate::engine::rendering::renderer::{RenderCmdHd, Renderer};
 use crate::engine::rendering::renderer_helpers::prepare_material;
-use crate::engine::ecs::{ time::RenderingResourcesContainer, components::SpriteRenderer2D };
+use crate::engine::rendering::shaders::Material;
 
 pub struct World {
     m_world: bevy_ecs::world::World,
     rhandle_links: RefCell<Vec<(RenderCmdHd, Entity)>>, // rendering handle that map a gfx handle to an Entity
     rhandle_to_link_index: RefCell<HashMap<Entity, usize>>, // map entity to the index of the rhandle_links
 
-    main_camera: Entity
+    main_camera: Entity,
 }
 
 impl World {
@@ -24,10 +25,24 @@ impl World {
         let mut world = bevy_ecs::world::World::new();
 
         Self {
-            main_camera: world.spawn((
-                Camera { fov: 80.0, near: 0.1, far: 100.0, viewport: (0.0, 0.0, 1.0, 1.0), mode: Projection::Orthographic, output_target: Option::None, background_color: Option::None },
-                Transform { position: Default::default(), rotation: Default::default(), scale: Default::default() }
-            )).id(),
+            main_camera: world
+                .spawn((
+                    Camera {
+                        fov: 80.0,
+                        near: 0.1,
+                        far: 100.0,
+                        viewport: (0.0, 0.0, 1.0, 1.0),
+                        mode: Projection::Orthographic,
+                        output_target: Option::None,
+                        background_color: Option::None,
+                    },
+                    Transform {
+                        position: Default::default(),
+                        rotation: Default::default(),
+                        scale: Default::default(),
+                    },
+                ))
+                .id(),
 
             m_world: world,
             rhandle_links: RefCell::new(Vec::new()),
@@ -43,7 +58,8 @@ impl World {
 
             if let Some(comp) = entity_ref.get::<SpriteRenderer2D>() {
                 let handle: RenderCmdHd = renderer.create_render_command(RenderRequest {
-                    mesh_info: MeshInfo { // Todo: Will be default until mesh is implemented
+                    mesh_info: MeshInfo {
+                        // Todo: Will be default until mesh is implemented
                         file_path: None,
                         count: 0,
                         vertices_set: None,
@@ -53,8 +69,12 @@ impl World {
 
                 let links_len: usize = self.rhandle_links.borrow().len();
 
-                self.rhandle_links.borrow_mut().push((handle, entity.clone()));
-                self.rhandle_to_link_index.borrow_mut().insert(entity.clone(), links_len);
+                self.rhandle_links
+                    .borrow_mut()
+                    .push((handle, entity.clone()));
+                self.rhandle_to_link_index
+                    .borrow_mut()
+                    .insert(entity.clone(), links_len);
 
                 println!("[ECS Rendering] New command created with link (entity: {} <=> rendering_handle: {})", entity.index(), handle);
             }
@@ -63,12 +83,25 @@ impl World {
 
     pub fn flush_rendering_command_handles(&mut self, renderer: &mut Renderer) {
         let world: &mut bevy_ecs::world::World = &mut self.m_world;
-        let mut container = world.get_resource_mut::<RenderingResourcesContainer>().expect("RenderingResourcesContainer not found");
+        let container = world
+            .get_resource::<RenderingResourcesContainer>()
+            .expect("[ECS] Failed to fetch Rendering Ressources");
 
         for entity in container.deleted_2d_render.iter() {
             if self.rhandle_to_link_index.borrow().contains_key(entity) {
-                let link_index: usize = self.rhandle_to_link_index.borrow().get(entity).unwrap().clone();
-                let handle: RenderCmdHd = self.rhandle_links.borrow().get(link_index).unwrap().0.clone();
+                let link_index: usize = self
+                    .rhandle_to_link_index
+                    .borrow()
+                    .get(entity)
+                    .unwrap()
+                    .clone();
+                let handle: RenderCmdHd = self
+                    .rhandle_links
+                    .borrow()
+                    .get(link_index)
+                    .unwrap()
+                    .0
+                    .clone();
 
                 renderer.remove_render_command(handle);
                 self.rhandle_links.borrow_mut().remove(link_index);
@@ -78,15 +111,51 @@ impl World {
 
         for updated_entity in container.updated_2d_render.iter() {
             println!("[TODO]: updated entity {:?}", updated_entity); // todo! implement changes there.
+            let link_index: usize = self
+                .rhandle_to_link_index
+                .borrow()
+                .get(updated_entity)
+                .unwrap()
+                .clone();
+            let rhandle: RenderCmdHd = self
+                .rhandle_links
+                .borrow()
+                .get(link_index.clone())
+                .unwrap()
+                .0
+                .clone();
+
+            let component: &SpriteRenderer2D = world
+                .get::<SpriteRenderer2D>(*updated_entity)
+                .as_ref()
+                .unwrap();
+
+            // Blit the texture from the sprite component to the rendering material sprite
+            let new_material: Option<Material> =
+                component.material.as_ref().map(|map: &Material| {
+                    let mut new_material: Material = map.clone();
+                    new_material.main_texture = component.texture.clone();
+                    return new_material;
+                });
+
+            renderer.update_render_command(RenderUpdate {
+                render_cmd: rhandle,
+                mesh_info: None,
+                material: new_material,
+            });
         }
 
         for (handle, _entity) in self.rhandle_links.borrow().iter() {
             renderer.enqueue_cmd_for_current_frame(handle.clone());
         }
 
-        container.new_2d_render.clear();
-        container.deleted_2d_render.clear();
-        container.updated_2d_render.clear();
+        let mut mut_container = world
+            .get_resource_mut::<RenderingResourcesContainer>()
+            .unwrap();
+
+        mut_container.new_2d_render.clear();
+        mut_container.deleted_2d_render.clear();
+        mut_container.updated_2d_render.clear();
     }
 
     pub fn flush_camera_changes(&mut self, renderer: &mut Renderer) {

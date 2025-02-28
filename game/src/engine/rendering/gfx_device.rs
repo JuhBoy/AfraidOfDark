@@ -2,9 +2,7 @@ use crate::engine::rendering::shaders::ShaderType;
 use std::{cell::RefCell, rc::Rc};
 
 use super::{
-    components::{BufferSettings, FrameBuffer, Rect},
-    renderer::RenderCmdHd,
-    shaders::{Material, Texture},
+    components::{BufferSettings, FrameBuffer, Rect}, renderer::RenderCmdHd, shaders::{Material, Texture}
 };
 
 pub struct GfxDevice {
@@ -14,6 +12,7 @@ pub struct GfxDevice {
     pub shader_api: Rc<dyn GfxApiShader>,
 }
 
+#[derive(Clone)]
 pub struct ShaderModule {
     pub self_handle: u32,
     pub vertex_handle: Option<u32>,   // they can be deleted already
@@ -22,7 +21,7 @@ pub struct ShaderModule {
     pub material: Material,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BufferModule {
     pub handle: u32,
     pub buffer_handles: Option<Vec<u32>>,
@@ -31,6 +30,7 @@ pub struct BufferModule {
     pub vertices_count: Option<Vec<u32>>,
 }
 
+#[derive(Clone)]
 pub struct RenderCommand {
     pub initialized: bool,
     pub handle: RenderCmdHd,
@@ -45,8 +45,7 @@ pub trait GfxApiShader {
     fn set_attribute_f32(&self, sp_hdl: u32, _identifier: &str, _value: f32);
     fn set_attribute_bool(&self, sp_hdl: u32, _identifier: &str, _value: bool);
     fn set_attribute_color(&self, sp_hdl: u32, _identifier: &str, _value: glm::Vec4);
-
-    fn set_texture(&self, sp_hdl: u32, texture: Texture, texture_location: i32) -> u32;
+    fn set_texture_unit(&self, prog_hdl: u32, texture_pos: i32);
 }
 
 pub trait GfxApiDevice {
@@ -76,6 +75,8 @@ pub trait GfxApiDevice {
     // Textures
     // ======================
     fn alloc_framebuffer_texture(&self, width: i32, height: i32) -> u32;
+    fn alloc_texture(&self, sp_hdl: u32, texture: &Texture) -> u32;
+    fn release_texture(&self, tex_id: u32);
 
     // ======================
     // Drawing
@@ -105,7 +106,8 @@ impl GfxDevice {
     }
 
     pub fn blit_main_framebuffer(&self, screen_module: &BufferModule, framebuffer: &FrameBuffer) {
-        self.instance.blit_main_framebuffer(screen_module, framebuffer);
+        self.instance
+            .blit_main_framebuffer(screen_module, framebuffer);
     }
 
     pub fn alloc_framebuffer(&self, width: i32, height: i32) -> FrameBuffer {
@@ -131,6 +133,10 @@ impl GfxDevice {
 
     pub fn delete_shader_module(&self, module: ShaderModule) {
         self.instance.release_shader_module(module.self_handle);
+    }
+
+    pub fn alloc_texture(&self, sp_hdl: u32, texture: &Texture) -> u32 {
+        self.instance.alloc_texture(sp_hdl, texture)
     }
 
     // ======================
@@ -188,5 +194,24 @@ impl GfxDevice {
     pub fn clear(&self) {
         self.instance.clear_color();
         self.instance.clear_buffers();
+    }
+
+    pub fn update_texture(
+        &mut self,
+        shader_module: &mut ShaderModule,
+        texture_hdl: u32,
+    ) -> bool {
+        // Delete GPU textures
+        if !shader_module.texture_handles.is_empty() {
+            for tex_id in shader_module.texture_handles.iter() {
+                self.instance.release_texture(*tex_id);
+            }
+        }
+
+				// Adds the new texture and clear the cached handles
+        shader_module.texture_handles.clear();
+				shader_module.texture_handles.push(texture_hdl);
+
+        true
     }
 }

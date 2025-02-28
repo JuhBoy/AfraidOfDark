@@ -10,6 +10,7 @@ use crate::{
 use glfw::ffi::glfwWindowHint;
 use glfw::{ffi::glfwInit, Action, Context, Glfw, GlfwReceiver, Key, PWindow, WindowEvent};
 use glm::Vector4;
+use std::cell::{Ref, RefMut};
 use std::{
     cell::RefCell,
     collections::{HashMap, VecDeque},
@@ -17,9 +18,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use super::components::Rect;
+use super::components::{Rect, RenderUpdate};
 use super::gfx_device::BufferModule;
-use super::renderer_helpers::compute_gfx_viewport_rect;
+use super::renderer_helpers::{
+    COLOR_MASK, compute_gfx_viewport_rect, get_material_changes, TEXTURE_MASK, MaterialUpdateMask,
+};
 use super::{
     components::{BufferSettings, FrameBuffer, RenderRequest, RenderState},
     gfx_device::{RenderCommand, ShaderModule},
@@ -93,7 +96,7 @@ impl Renderer {
 
             main_framebuffer: None,
             screen_shader_module: None,
-						screen_quad_buffer: None,
+            screen_quad_buffer: None,
 
             instance,
             window,
@@ -257,12 +260,13 @@ impl Renderer {
 
         if let Some(tex_name) = render_req.material.main_texture.as_ref() {
             let texture = self.rendering_store.load_texture(&tex_name).ok().unwrap();
-            let texture_handle =
-                gfx_device
-                    .shader_api
-                    .set_texture(shader_module.self_handle, texture, 0);
+            let texture_handle: u32 = gfx_device.alloc_texture(shader_module.self_handle, &texture);
+
+            const DEFAULT_TEXTURE_IDX: i32 = 0;
+            gfx_device
+                .shader_api
+                .set_texture_unit(shader_module.self_handle, DEFAULT_TEXTURE_IDX);
             shader_module.texture_handles.push(texture_handle);
-            println!("[Texture Loading] New Texture handle: {}", texture_handle)
         }
 
         gfx_device.shader_api.set_attribute_color(
@@ -277,11 +281,66 @@ impl Renderer {
         command_handle
     }
 
+    pub fn update_render_command(&mut self, update_req: RenderUpdate) -> bool {
+        let mut command: RefMut<RenderCommand> =
+            self.rendering_store.get_mut_ref(update_req.render_cmd);
+
+        let mut update_mask: MaterialUpdateMask = 0u8;
+
+        // check changes in material properties
+        if !update_req.material.is_none() {
+            let current: &Material = &command.shader_module.material;
+            let updated: &Material = update_req.material.as_ref().unwrap();
+            update_mask = get_material_changes(current, updated);
+        }
+
+        if update_mask == 0 {
+            return false;
+        }
+
+        let gpu: &mut GfxDevice = self.gfx_device.as_deref_mut().expect("gfx_device not init");
+
+        if (update_mask & COLOR_MASK) != 0 {
+            let new_color: Vector4<f32> = update_req.material.as_ref().unwrap().color;
+
+            gpu.shader_api.set_attribute_color(
+                command.shader_module.self_handle,
+                "surface_color",
+                new_color,
+            );
+
+            command.shader_module.material.color = new_color;
+        }
+
+        if (update_mask & TEXTURE_MASK) != 0 {
+            let texture_name: &String = update_req
+                .material
+                .as_ref()
+                .unwrap()
+                .main_texture
+                .as_ref()
+                .unwrap();
+
+            match self.rendering_store.load_texture(texture_name) {
+                Ok(texture) => {
+                    let texture_handle: u32 =
+                        gpu.alloc_texture(command.shader_module.self_handle, &texture);
+                    gpu.update_texture(&mut command.shader_module, texture_handle);
+                }
+                Err(err) => {
+                    panic!("[Renderr]: failed to load texture {}", err)
+                }
+            }
+        }
+
+        true
+    }
+
     pub fn enqueue_cmd_for_current_frame(&mut self, handle: RenderCmdHd) {
         self.rendering_store.add_to_frame_queue(handle);
     }
 
-    pub fn get_command(&self, handle: RenderCmdHd) -> Rc<RenderCommand> {
+    pub fn get_command(&self, handle: RenderCmdHd) -> Ref<RenderCommand> {
         self.rendering_store.get_ref(handle)
     }
 
@@ -326,8 +385,9 @@ impl Renderer {
         let rendering_queue = &mut self.rendering_store.renderer_queue;
         while !rendering_queue.is_empty() {
             if let Some(command) = rendering_queue.pop_front() {
-                gfx_device.use_shader_module(&command.shader_module);
-                gfx_device.draw_command(&command);
+                let comand_ref: Ref<'_, RenderCommand> = command.borrow();
+                gfx_device.use_shader_module(&comand_ref.shader_module);
+                gfx_device.draw_command(&comand_ref);
             }
         }
 

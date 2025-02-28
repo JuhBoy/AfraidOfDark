@@ -13,7 +13,7 @@ files:
 // [x] - Test view port changes with a simple game system that respond to a input keys
 // [o] - Create frame buffer target per camera with ECS binding
 			[x] Actually neededing to rework the alloc_buffer form gfx device opengl to allow quad with no indices for rendering the screen shader with 2D vertex
-			[ ] Refacto FrameBuffer object to make it more clear what is used as screen sampling (probably needs to extract the shaders and buffers object)
-// [ ] - Update Camera changes from ECS to the rendering system via shader_api (uniforms)
+			[x] Refacto FrameBuffer object to make it more clear what is used as screen sampling (probably needs to extract the shaders and buffers object)
+// [x] - Update Camera changes from ECS to the rendering system via shader_api (uniforms)
 // [ ] - Update Transform of SpriteRenderer2D from ECS to the rendering system via shader_api (uniforms)
 // [ ] - Adds orthographic projection to the shader_api

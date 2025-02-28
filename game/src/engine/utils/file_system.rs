@@ -37,7 +37,7 @@ impl FileSystem {
 
         println!("[File System] Loading texture: {}", &file_path);
 
-        match Reader::open(&file_path).unwrap().decode() {
+        match Reader::open(&file_path).or(Err("File not Found")).unwrap().decode() {
             Ok(img) => {
                 let width = img.width();
                 let height = img.height();

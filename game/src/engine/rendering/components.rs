@@ -1,4 +1,4 @@
-use super::shaders::Material;
+use super::{renderer::RenderCmdHd, shaders::Material};
 
 #[derive(Debug)]
 pub struct BufferSettings {
@@ -24,6 +24,12 @@ pub struct MeshInfo {
 pub struct RenderRequest {
     pub mesh_info: MeshInfo,
     pub material: Material,
+}
+
+pub struct RenderUpdate {
+		pub render_cmd: RenderCmdHd,
+    pub mesh_info: Option<MeshInfo>,
+    pub material: Option<Material>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
