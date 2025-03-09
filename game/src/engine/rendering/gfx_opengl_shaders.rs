@@ -1,6 +1,6 @@
-use std::ffi::CString;
-
 use super::gfx_device::GfxApiShader;
+use glm::Matrix4;
+use std::ffi::CString;
 
 #[derive(Default)]
 pub struct GfxOpenGLShaderApi;
@@ -29,24 +29,6 @@ impl GfxApiShader for GfxOpenGLShaderApi {
         }
     }
 
-    fn set_attribute_color(&self, prog_hdl: u32, identifier: &str, value: glm::Vec4) {
-        unsafe {
-            gl::UseProgram(prog_hdl);
-        }
-
-        match self.get_uniform_location(prog_hdl, identifier) {
-            Ok(location) => {
-                let vec: [f32; 4] = *value.as_array();
-                unsafe {
-                    gl::Uniform4fv(location, 1, vec.as_ptr());
-                }
-            }
-            Err(e) => {
-                println!("[Shader API Error]: {}", e);
-            }
-        }
-    }
-
     fn set_attribute_f32(&self, prog_hdl: u32, identifier: &str, value: f32) {
         unsafe {
             gl::UseProgram(prog_hdl);
@@ -62,6 +44,27 @@ impl GfxApiShader for GfxOpenGLShaderApi {
         }
     }
 
+    fn set_attribute_mat4(&self, sp_hdl: u32, identifier: &str, mat: &Matrix4<f32>) {
+        unsafe {
+            gl::UseProgram(sp_hdl);
+        }
+
+        let location: Result<i32, String> = self.get_uniform_location(sp_hdl, identifier);
+        match location {
+            Ok(mvp_matrix_id) => unsafe {
+                gl::UniformMatrix4fv(
+                    mvp_matrix_id,
+                    1,
+                    gl::FALSE,
+                    mat.as_array().as_ptr() as *const f32,
+                );
+            },
+            Err(err) => {
+                println!("[OpenGl Shader]: Failed to get uniform location {}", &err)
+            }
+        }
+    }
+
     fn set_attribute_bool(&self, prog_hdl: u32, identifier: &str, value: bool) {
         unsafe {
             gl::UseProgram(prog_hdl);
@@ -71,6 +74,24 @@ impl GfxApiShader for GfxOpenGLShaderApi {
             Ok(location) => unsafe {
                 gl::Uniform1i(location, if value == true { 1 } else { 0 });
             },
+            Err(e) => {
+                println!("[Shader API Error]: {}", e);
+            }
+        }
+    }
+
+    fn set_attribute_color(&self, prog_hdl: u32, identifier: &str, value: glm::Vec4) {
+        unsafe {
+            gl::UseProgram(prog_hdl);
+        }
+
+        match self.get_uniform_location(prog_hdl, identifier) {
+            Ok(location) => {
+                let vec: [f32; 4] = *value.as_array();
+                unsafe {
+                    gl::Uniform4fv(location, 1, vec.as_ptr());
+                }
+            }
             Err(e) => {
                 println!("[Shader API Error]: {}", e);
             }

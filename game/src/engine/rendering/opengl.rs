@@ -16,73 +16,6 @@ use super::shaders::Texture;
 pub struct GfxDeviceOpengl;
 
 impl GfxApiDevice for GfxDeviceOpengl {
-    fn use_framebuffer(&self, framebuffer: Option<&FrameBuffer>) {
-        let mut handle: u32 = 0;
-
-        if let Some(fbo) = framebuffer {
-            handle = fbo.self_handle;
-        }
-
-        unsafe {
-            gl::BindFramebuffer(gl::FRAMEBUFFER, handle);
-
-            // @warning: maybe a shortcut here.. if the framebuffer is empty then we assume it's bliting the main framebuffer to the screen
-            if framebuffer.is_none() {
-                gl::Enable(gl::DEPTH_TEST);
-            } else {
-                gl::Disable(gl::DEPTH_TEST)
-            }
-        }
-    }
-
-    fn alloc_framebuffer(&self, width: i32, height: i32) -> Result<FrameBuffer, &str> {
-        let mut fbo: u32 = 0;
-        #[allow(unused)]
-        let mut tex_hdl: u32 = 0;
-        let mut rbo_handle: u32 = 0;
-
-        unsafe {
-            gl::GenFramebuffers(1, &mut fbo);
-            gl::BindFramebuffer(gl::FRAMEBUFFER, fbo);
-
-            tex_hdl = self.alloc_framebuffer_texture(width, height);
-            gl::FramebufferTexture2D(
-                gl::FRAMEBUFFER,
-                gl::COLOR_ATTACHMENT0,
-                gl::TEXTURE_2D,
-                tex_hdl,
-                0,
-            );
-
-            gl::GenRenderbuffers(1, &mut rbo_handle);
-            gl::BindRenderbuffer(gl::RENDERBUFFER, rbo_handle);
-            gl::RenderbufferStorage(gl::RENDERBUFFER, gl::DEPTH24_STENCIL8, width, height);
-            gl::BindRenderbuffer(gl::FRAMEBUFFER, 0);
-
-            // Attach the renderbuffer to the framebuffer
-            gl::FramebufferRenderbuffer(
-                gl::FRAMEBUFFER,
-                gl::DEPTH_STENCIL_ATTACHMENT,
-                gl::RENDERBUFFER,
-                rbo_handle,
-            );
-
-            let fbo_state = gl::CheckFramebufferStatus(gl::FRAMEBUFFER);
-            if fbo_state != gl::FRAMEBUFFER_COMPLETE {
-                println!("[GFX DEVICE] failed to allocate new frame buffer");
-            }
-
-            gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
-        }
-
-        Ok(FrameBuffer {
-            self_handle: fbo,
-            texture_attachement: tex_hdl,
-            width,
-            height,
-        })
-    }
-
     fn alloc_shader(&self, source: String, s_type: ShaderType) -> u32 {
         #[allow(unused)]
         let mut shader_handle = 0u32;
@@ -130,33 +63,6 @@ impl GfxApiDevice for GfxDeviceOpengl {
         shader_handle
     }
 
-    fn alloc_framebuffer_texture(&self, width: i32, height: i32) -> u32 {
-        let mut texture_handle: u32 = 0;
-
-        unsafe {
-            gl::GenTextures(1, &mut texture_handle);
-            gl::BindTexture(gl::TEXTURE_2D, texture_handle);
-
-            gl::TexImage2D(
-                gl::TEXTURE_2D,
-                0i32,
-                gl::RGB as i32,
-                width,
-                height,
-                0i32,
-                gl::RGB,
-                gl::UNSIGNED_BYTE,
-                std::ptr::null(),
-            );
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
-
-            gl::BindTexture(gl::TEXTURE_2D, 0);
-        }
-
-        return texture_handle;
-    }
-
     fn alloc_shader_module(&self, vertex: u32, frag: u32, material: &Material) -> ShaderModule {
         #[allow(unused)]
         let mut program_handle = 0u32;
@@ -194,14 +100,14 @@ impl GfxApiDevice for GfxDeviceOpengl {
         }
     }
 
+    fn release_shader_module(&self, module_handle: u32) {
+        unsafe { gl::DeleteProgram(module_handle) }
+    }
+
     fn use_shader_module(&self, module_handle: u32) {
         unsafe {
             gl::UseProgram(module_handle);
         }
-    }
-
-    fn release_shader_module(&self, module_handle: u32) {
-        unsafe { gl::DeleteProgram(module_handle) }
     }
 
     fn alloc_buffer(
@@ -308,51 +214,106 @@ impl GfxApiDevice for GfxDeviceOpengl {
         }
     }
 
-    fn draw_command(&self, command: &RenderCommand) {
+    fn alloc_framebuffer(&self, width: i32, height: i32) -> Result<FrameBuffer, &str> {
+        let mut fbo: u32 = 0;
+        #[allow(unused)]
+        let mut tex_hdl: u32 = 0;
+        let mut rbo_handle: u32 = 0;
+
         unsafe {
-            gl::BindVertexArray(command.buffer_module.handle);
-            gl::PolygonMode(gl::FRONT, gl::FILL);
-            gl::PolygonMode(gl::BACK, gl::LINE);
+            gl::GenFramebuffers(1, &mut fbo);
+            gl::BindFramebuffer(gl::FRAMEBUFFER, fbo);
 
-            command
-                .shader_module
-                .texture_handles
-                .iter()
-                .enumerate()
-                .for_each(|(i, x)| {
-                    gl::ActiveTexture(gl::TEXTURE0 + i as u32);
-                    gl::BindTexture(gl::TEXTURE_2D, *x);
-                });
+            tex_hdl = self.alloc_framebuffer_texture(width, height);
+            gl::FramebufferTexture2D(
+                gl::FRAMEBUFFER,
+                gl::COLOR_ATTACHMENT0,
+                gl::TEXTURE_2D,
+                tex_hdl,
+                0,
+            );
 
-            for buffer in command
-                .buffer_module
-                .buffer_handles
-                .as_ref()
-                .unwrap()
-                .iter()
-            {
-                gl::BindBuffer(gl::ARRAY_BUFFER, *buffer);
-                gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
+            gl::GenRenderbuffers(1, &mut rbo_handle);
+            gl::BindRenderbuffer(gl::RENDERBUFFER, rbo_handle);
+            gl::RenderbufferStorage(gl::RENDERBUFFER, gl::DEPTH24_STENCIL8, width, height);
+            gl::BindRenderbuffer(gl::FRAMEBUFFER, 0);
+
+            // Attach the renderbuffer to the framebuffer
+            gl::FramebufferRenderbuffer(
+                gl::FRAMEBUFFER,
+                gl::DEPTH_STENCIL_ATTACHMENT,
+                gl::RENDERBUFFER,
+                rbo_handle,
+            );
+
+            let fbo_state: u32 = gl::CheckFramebufferStatus(gl::FRAMEBUFFER);
+            if fbo_state != gl::FRAMEBUFFER_COMPLETE {
+                println!("[GFX DEVICE] failed to allocate new frame buffer");
             }
 
-            gl::BindVertexArray(0);
-            gl::BindTexture(gl::TEXTURE_2D, 0);
-            gl::BindBuffer(gl::ARRAY_BUFFER, 0);
+            gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+        }
+
+        Ok(FrameBuffer {
+            self_handle: fbo,
+            texture_attachment: tex_hdl,
+            width,
+            height,
+        })
+    }
+
+    fn use_framebuffer(&self, framebuffer: Option<&FrameBuffer>) {
+        let mut handle: u32 = 0;
+
+        if let Some(fbo) = framebuffer {
+            handle = fbo.self_handle;
+        }
+
+        unsafe {
+            gl::BindFramebuffer(gl::FRAMEBUFFER, handle);
+
+            // @warning: maybe a shortcut here.. if the framebuffer is empty then we assume it's bliting the main framebuffer to the screen
+            if framebuffer.is_none() {
+                gl::Enable(gl::DEPTH_TEST);
+            } else {
+                gl::Disable(gl::DEPTH_TEST)
+            }
         }
     }
 
     fn blit_main_framebuffer(&self, screen_module: &BufferModule, framebuffer: &FrameBuffer) {
         unsafe {
             gl::BindVertexArray(screen_module.handle);
-            gl::BindTexture(gl::TEXTURE_2D, framebuffer.texture_attachement);
+            gl::BindTexture(gl::TEXTURE_2D, framebuffer.texture_attachment);
             gl::DrawArrays(gl::TRIANGLES, 0, 6);
         }
     }
 
-    fn clear_color(&self) {
+    fn alloc_framebuffer_texture(&self, width: i32, height: i32) -> u32 {
+        let mut texture_handle: u32 = 0;
+
         unsafe {
-            gl::ClearColor(0f32, 0f32, 0f32, 1.0f32);
+            gl::GenTextures(1, &mut texture_handle);
+            gl::BindTexture(gl::TEXTURE_2D, texture_handle);
+
+            gl::TexImage2D(
+                gl::TEXTURE_2D,
+                0i32,
+                gl::RGB as i32,
+                width,
+                height,
+                0i32,
+                gl::RGB,
+                gl::UNSIGNED_BYTE,
+                ptr::null(),
+            );
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+
+            gl::BindTexture(gl::TEXTURE_2D, 0);
         }
+
+        texture_handle
     }
 
     fn alloc_texture(&self, prog_hdl: u32, texture: &Texture) -> u32 {
@@ -393,6 +354,51 @@ impl GfxApiDevice for GfxDeviceOpengl {
             gl::BindTexture(gl::TEXTURE_2D, 0);
 
             tex_hdl
+        }
+    }
+
+    fn release_texture(&self, texture_id: u32) {
+        unsafe {
+            gl::DeleteTextures(1, &texture_id);
+        }
+    }
+
+    fn draw_command(&self, command: &RenderCommand) {
+        unsafe {
+            gl::BindVertexArray(command.buffer_module.handle);
+            gl::PolygonMode(gl::FRONT, gl::FILL);
+            gl::PolygonMode(gl::BACK, gl::LINE);
+
+            command
+                .shader_module
+                .texture_handles
+                .iter()
+                .enumerate()
+                .for_each(|(i, x)| {
+                    gl::ActiveTexture(gl::TEXTURE0 + i as u32);
+                    gl::BindTexture(gl::TEXTURE_2D, *x);
+                });
+
+            for buffer in command
+                .buffer_module
+                .buffer_handles
+                .as_ref()
+                .unwrap()
+                .iter()
+            {
+                gl::BindBuffer(gl::ARRAY_BUFFER, *buffer);
+                gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
+            }
+
+            gl::BindVertexArray(0);
+            gl::BindTexture(gl::TEXTURE_2D, 0);
+            gl::BindBuffer(gl::ARRAY_BUFFER, 0);
+        }
+    }
+
+    fn clear_color(&self) {
+        unsafe {
+            gl::ClearColor(0f32, 0f32, 0f32, 1.0f32);
         }
     }
 
@@ -439,12 +445,6 @@ impl GfxApiDevice for GfxDeviceOpengl {
     fn clear_buffers(&self) {
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
-        }
-    }
-
-    fn release_texture(&self, texture_id: u32) {
-        unsafe {
-            gl::DeleteTextures(1, &texture_id);
         }
     }
 }

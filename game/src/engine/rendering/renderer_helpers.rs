@@ -1,13 +1,38 @@
-use crate::engine::ecs::components::SpriteRenderer2D;
-
 use super::{
     components::Rect,
     shaders::{Material, ShaderPack},
 };
+use crate::engine::ecs::components::SpriteRenderer2D;
+use crate::engine::rendering::components::RenderRequest;
+use crate::engine::rendering::shaders::{ShaderInfo, ShaderType};
 
 pub type MaterialUpdateMask = u8;
 pub const TEXTURE_MASK: u8 = 1 << 0;
 pub const COLOR_MASK: u8 = 1 << 1;
+pub const TRANSFORM_MASK: u8 = 1 << 2;
+
+pub fn get_shader_info_or_default(render_request: &RenderRequest) -> [ShaderInfo; 2] {
+    let vert_default: ShaderInfo = ShaderInfo::default(ShaderType::Vertex);
+    let frag_default: ShaderInfo = ShaderInfo::default(ShaderType::Fragment);
+
+    let vert_info = render_request
+        .material
+        .shaders
+        .vertex
+        .as_ref()
+        .map(|info| info.clone())
+        .unwrap_or(vert_default);
+
+    let frag_info = render_request
+        .material
+        .shaders
+        .fragment
+        .as_ref()
+        .map(|info| info.clone())
+        .unwrap_or(frag_default);
+
+    [vert_info, frag_info]
+}
 
 pub fn prepare_material(sprite: &SpriteRenderer2D, material: Option<&Material>) -> Material {
     let sprite_texture = sprite.texture.clone();
@@ -61,12 +86,19 @@ pub fn get_material_changes(
 ) -> MaterialUpdateMask {
     let mut update_mask: u8 = 0;
 
-    if updating_mat.main_texture.is_some() {
+    if updating_mat.main_texture.is_some()
+        && updating_mat.main_texture != rendering_mat.main_texture
+    {
+        println!(
+            "{} -> {}",
+            updating_mat.main_texture.as_ref().unwrap(),
+            rendering_mat.main_texture.as_ref().unwrap()
+        );
         update_mask |= TEXTURE_MASK;
     }
     if rendering_mat.color != updating_mat.color {
         update_mask |= COLOR_MASK;
     }
 
-    return update_mask;
+    update_mask
 }

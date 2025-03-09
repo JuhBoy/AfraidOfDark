@@ -1,4 +1,5 @@
 use super::{renderer::RenderCmdHd, shaders::Material};
+use crate::engine::ecs::components::Transform;
 
 #[derive(Debug)]
 pub struct BufferSettings {
@@ -10,9 +11,18 @@ pub struct BufferSettings {
 #[derive(Debug)]
 pub struct FrameBuffer {
     pub self_handle: u32,
-    pub texture_attachement: u32,
+    pub texture_attachment: u32,
     pub width: i32,
     pub height: i32,
+}
+
+#[derive(Debug)]
+pub struct RenderingCamera {
+    pub near: f32,
+    pub far: f32,
+    pub background_color: [f32; 3],
+    
+    pub transform: Transform,
 }
 
 pub struct MeshInfo {
@@ -24,12 +34,14 @@ pub struct MeshInfo {
 pub struct RenderRequest {
     pub mesh_info: MeshInfo,
     pub material: Material,
+    pub transform: Transform,
 }
 
 pub struct RenderUpdate {
-		pub render_cmd: RenderCmdHd,
+    pub render_cmd: RenderCmdHd,
     pub mesh_info: Option<MeshInfo>,
     pub material: Option<Material>,
+    pub transform: Option<Transform>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -44,4 +56,14 @@ pub struct Rect<T> {
     pub y: T,
     pub width: T,
     pub height: T,
+}
+
+impl BufferSettings {
+    pub fn quad_default() -> BufferSettings {
+        BufferSettings {
+            keep_vertices: false,
+            vertex_size: 3,
+            uvs_size: 2,
+        }
+    }
 }

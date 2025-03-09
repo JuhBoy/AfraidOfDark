@@ -125,7 +125,6 @@ impl RendererStorage {
     }
 
     pub fn load_texture(&self, texture_name: &str) -> Result<Texture, String> {
-        #[cfg(debug_assertions)]
         let tex = FileSystem::load_texture(&texture_name);
 
         if let Some(texture) = tex.as_ref().ok() {

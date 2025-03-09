@@ -1,5 +1,22 @@
+extern crate gl;
+extern crate glfw;
+use super::components::{Rect, RenderUpdate, RenderingCamera};
+use super::gfx_device::BufferModule;
+use super::renderer_helpers::{
+    compute_gfx_viewport_rect, get_material_changes, get_shader_info_or_default,
+    MaterialUpdateMask, COLOR_MASK, TEXTURE_MASK, TRANSFORM_MASK,
+};
+use super::{
+    components::{BufferSettings, FrameBuffer, RenderRequest, RenderState},
+    gfx_device::{RenderCommand, ShaderModule},
+    gfx_opengl_shaders::GfxOpenGLShaderApi,
+    renderer_storage::RendererStorage,
+    shaders::{Material, ShaderInfo, ShaderType},
+};
+use crate::engine::ecs::components::Transform;
 use crate::engine::rendering::gfx_device::GfxDevice;
 use crate::engine::rendering::opengl::GfxDeviceOpengl;
+use crate::engine::utils::maths::compute_trs;
 use crate::{
     engine::{
         inputs::keyboard::Keyboard, logging::logs_traits::LoggerBase,
@@ -9,7 +26,7 @@ use crate::{
 };
 use glfw::ffi::glfwWindowHint;
 use glfw::{ffi::glfwInit, Action, Context, Glfw, GlfwReceiver, Key, PWindow, WindowEvent};
-use glm::Vector4;
+use glm::{Matrix4, Vector4};
 use std::cell::{Ref, RefMut};
 use std::{
     cell::RefCell,
@@ -18,30 +35,15 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use super::components::{Rect, RenderUpdate};
-use super::gfx_device::BufferModule;
-use super::renderer_helpers::{
-    COLOR_MASK, compute_gfx_viewport_rect, get_material_changes, TEXTURE_MASK, MaterialUpdateMask,
-};
-use super::{
-    components::{BufferSettings, FrameBuffer, RenderRequest, RenderState},
-    gfx_device::{RenderCommand, ShaderModule},
-    gfx_opengl_shaders::GfxOpenGLShaderApi,
-    renderer_storage::RendererStorage,
-    shaders::{Material, ShaderInfo, ShaderType},
-};
-
 pub type OnWindowResizedCb = dyn FnMut(&mut glfw::Window, i32, i32);
 pub type RenderCmdHd = u128;
-
-extern crate gl;
-extern crate glfw;
 
 pub struct Renderer {
     keyboard_inputs: Arc<Mutex<Keyboard>>,
     rendering_state: RenderState,
     rendering_store: RendererStorage,
     viewport_rect: RefCell<glm::Vector4<f32>>, // x, y, width, height (Range is [0; 1])
+    main_camera: RenderingCamera,
 
     main_framebuffer: Option<FrameBuffer>,
     screen_shader_module: Option<ShaderModule>,
@@ -93,6 +95,12 @@ impl Renderer {
                 renderer_queue: VecDeque::new(),
             },
             viewport_rect: RefCell::new(glm::vec4(0.0, 0.0, 1.0, 1.0)),
+            main_camera: RenderingCamera {
+                near: 0.1,
+                far: 100.0,
+                background_color: [1.0f32, 1.0f32, 1.0f32],
+                transform: Transform::default(),
+            },
 
             main_framebuffer: None,
             screen_shader_module: None,
@@ -212,70 +220,54 @@ impl Renderer {
             return 0u128;
         }
 
-        let gfx_device = self
+        let gfx = self
             .gfx_device
             .as_deref_mut()
             .expect("Graphic device not allocated");
 
-        let vert_default = ShaderInfo::default(ShaderType::Vertex);
-        let frag_default = ShaderInfo::default(ShaderType::Fragment);
-
-        let vert_info = render_req
-            .material
-            .shaders
-            .vertex
-            .as_ref()
-            .unwrap_or(&vert_default);
-        let frag_info = render_req
-            .material
-            .shaders
-            .fragment
-            .as_ref()
-            .unwrap_or(&frag_default);
-
+        let [vert_info, frag_info] = get_shader_info_or_default(&render_req);
         let vs_content = self
             .rendering_store
-            .load_shader_content(vert_info)
-            .expect("Boom!");
+            .load_shader_content(&vert_info)
+            .expect("[Renderer] Could not load shader");
         let fs_content = self
             .rendering_store
-            .load_shader_content(frag_info)
-            .expect("Boom!");
+            .load_shader_content(&frag_info)
+            .expect("[Renderer] Could not load shader");
 
-        let vs_hdl = gfx_device.alloc_shader(vs_content, ShaderType::Vertex);
-        let fs_hdl = gfx_device.alloc_shader(fs_content, ShaderType::Fragment);
+        let vs_hdl = gfx.alloc_shader(vs_content, ShaderType::Vertex);
+        let fs_hdl = gfx.alloc_shader(fs_content, ShaderType::Fragment);
 
-        let mut shader_module =
-            gfx_device.alloc_shader_module(vs_hdl, fs_hdl, &render_req.material);
-        let buffer_settings = BufferSettings {
-            keep_vertices: false,
-            vertex_size: 3,
-            uvs_size: 2,
-        };
-        let buffer_module = gfx_device.alloc_buffer(
+        let mut shader_module = gfx.alloc_shader_module(vs_hdl, fs_hdl, &render_req.material);
+
+        let buffer_module = gfx.alloc_buffer(
             RendererStorage::load(&render_req.mesh_info),
             vec![RendererStorage::get_quad_indices()],
-            buffer_settings,
+            BufferSettings::quad_default(),
         );
 
         if let Some(tex_name) = render_req.material.main_texture.as_ref() {
             let texture = self.rendering_store.load_texture(&tex_name).ok().unwrap();
-            let texture_handle: u32 = gfx_device.alloc_texture(shader_module.self_handle, &texture);
+            let texture_handle: u32 = gfx.alloc_texture(shader_module.self_handle, &texture);
 
             const DEFAULT_TEXTURE_IDX: i32 = 0;
-            gfx_device
-                .shader_api
+            gfx.shader_api
                 .set_texture_unit(shader_module.self_handle, DEFAULT_TEXTURE_IDX);
             shader_module.texture_handles.push(texture_handle);
         }
 
-        gfx_device.shader_api.set_attribute_color(
+        gfx.shader_api.set_attribute_color(
             shader_module.self_handle,
             "surface_color",
             shader_module.material.color,
         );
 
-        let command: RenderCommand = gfx_device.build_command(shader_module, buffer_module);
+        // compute the TRS matrix and forward it to the GPU device
+        let trs_matrix: Matrix4<f32> = compute_trs(&render_req.transform);
+        gfx.shader_api
+            .set_attribute_mat4(shader_module.self_handle, "TRS", &trs_matrix);
+
+        let command: RenderCommand = gfx.build_command(shader_module, buffer_module);
         let command_handle = self.rendering_store.store_command(command, true);
 
         command_handle
@@ -292,6 +284,10 @@ impl Renderer {
             let current: &Material = &command.shader_module.material;
             let updated: &Material = update_req.material.as_ref().unwrap();
             update_mask = get_material_changes(current, updated);
+        }
+
+        if update_req.transform.is_some() {
+            update_mask |= TRANSFORM_MASK;
         }
 
         if update_mask == 0 {
@@ -323,14 +319,31 @@ impl Renderer {
 
             match self.rendering_store.load_texture(texture_name) {
                 Ok(texture) => {
+                    // Updates gpu information for the command
                     let texture_handle: u32 =
                         gpu.alloc_texture(command.shader_module.self_handle, &texture);
                     gpu.update_texture(&mut command.shader_module, texture_handle);
+
+                    // Update the CPU texture name
+                    command.shader_module.material.main_texture =
+                        Option::from(texture_name.clone());
                 }
                 Err(err) => {
-                    panic!("[Renderr]: failed to load texture {}", err)
+                    println!(
+                        "[Renderer]: Abort texture update. Failed to load texture {}",
+                        err
+                    )
                 }
             }
+        }
+
+        if (update_mask & TRANSFORM_MASK) != 0 {
+            let new_trs_mat4: Matrix4<f32> = compute_trs(update_req.transform.as_ref().unwrap());
+            gpu.shader_api.set_attribute_mat4(
+                command.shader_module.self_handle,
+                "TRS",
+                &new_trs_mat4,
+            );
         }
 
         true
@@ -358,11 +371,20 @@ impl Renderer {
         vp_borrow.w = height;
     }
 
+    pub fn update_camera_settings(&mut self, camera_update: RenderingCamera) {
+        self.main_camera = camera_update;
+        println!("[Renderer] Update camera settings {:?}", &self.main_camera);
+    }
+
+    pub fn update_camera_transform(&mut self, transform: Transform) {
+        // todo! Update the camera transform and compute once and for all the orth projection
+        self.main_camera.transform = transform;
+        println!("[Renderer]: Update camera transform {:?}", &transform);
+    }
+
     pub fn render(&mut self, _delta_time: f32) {
-        // Manage inputs there
         self.rendering_state = RenderState::Opened;
 
-        // Render here
         let gfx_device = self
             .gfx_device
             .as_ref()
@@ -384,10 +406,10 @@ impl Renderer {
         // rendering_pass. WIP -> will be multithreaded at end
         let rendering_queue = &mut self.rendering_store.renderer_queue;
         while !rendering_queue.is_empty() {
-            if let Some(command) = rendering_queue.pop_front() {
-                let comand_ref: Ref<'_, RenderCommand> = command.borrow();
-                gfx_device.use_shader_module(&comand_ref.shader_module);
-                gfx_device.draw_command(&comand_ref);
+            if let Some(cmd_ptr) = rendering_queue.pop_front() {
+                let command: Ref<RenderCommand> = cmd_ptr.borrow();
+                gfx_device.use_shader_module(&command.shader_module);
+                gfx_device.draw_command(&command);
             }
         }
 

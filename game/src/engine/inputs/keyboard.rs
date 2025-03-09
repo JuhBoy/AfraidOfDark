@@ -7,11 +7,11 @@ pub struct Keyboard {
 }
 
 fn is_release(state: i32) -> bool {
-    return state & (1 << 1) != 0;
+   state & (1 << 1) != 0
 }
 
 fn is_pressed(state: i32) -> bool {
-    return (state & 1) != 0;
+    (state & 1) != 0
 }
 
 fn compute_state(action: glfw::Action, _modifier: glfw::Modifiers) -> i32 {

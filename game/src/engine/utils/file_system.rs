@@ -1,11 +1,14 @@
 use crate::engine::rendering::shaders::Texture;
-use image::io::Reader;
+use image::ImageReader;
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
 use std::{
     env,
     fs::File,
     io::{Read, Write},
     path::PathBuf,
 };
+use std::ops::Deref;
 
 static ASSETS_PATH: &str = "assets/";
 static SHADER_PATH: &str = "shaders/";
@@ -19,6 +22,21 @@ pub enum FileType {
     Texture,
     Mesh,
     Material,
+}
+
+static TEXTURE_CACHE: LazyLock<Mutex<HashMap<String, Texture>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+// For later use, ensure that cache size doesn't exceed defined limits
+fn texture_count() -> u8 {
+    if let Ok(locked) = TEXTURE_CACHE.try_lock() {
+        let count = locked.deref();
+        return count.len() as u8;
+    };
+
+    println!("[File System] Could not acquire texture cache");
+
+    0
 }
 
 pub struct FileSystem;
@@ -41,9 +59,18 @@ impl FileSystem {
     pub fn load_texture(file_path: &str) -> Result<Texture, String> {
         let file_path: String = FileSystem::get_path(file_path, FileType::Texture);
 
+        // if texture is found in the cached static container just returns a copy of it
+        let mut texture_cache = TEXTURE_CACHE
+            .lock()
+            .expect("[File System] Couldn't lock texture cache!");
+        if let Some(tex) = texture_cache.get(file_path.as_str()) {
+            return Ok(tex.clone());
+        };
+
+        #[cfg(debug_assertions)]
         println!("[File System] Loading texture: {}", &file_path);
 
-        let reader = Reader::open(&file_path);
+        let reader = ImageReader::open(&file_path);
 
         if reader.is_err() {
             return Err(String::from(format!(
@@ -60,12 +87,16 @@ impl FileSystem {
 
                 let img = img.flipv();
 
-                Ok(Texture {
+                // Construct texture and load it into the cache static
+                let tex = Texture {
                     data: img.into_bytes(),
                     width,
                     height,
                     channels,
-                })
+                };
+                texture_cache.insert(file_path.to_string(), tex.clone());
+
+                Ok(tex)
             }
             Err(_) => Err(String::from(format!("Could not open file {}", &file_path))),
         }
@@ -83,44 +114,20 @@ impl FileSystem {
         let current_dir: PathBuf = env::current_dir().expect("Could not get current directory");
         let path: String;
 
-        match f_type {
-            FileType::Shader => {
-                path = current_dir
-                    .join(ASSETS_PATH)
-                    .join(SHADER_PATH)
-                    .join(file_path)
-                    .into_os_string()
-                    .into_string()
-                    .unwrap();
-            }
-            FileType::Texture => {
-                path = current_dir
-                    .join(ASSETS_PATH)
-                    .join(TEXTURE_PATH)
-                    .join(file_path)
-                    .into_os_string()
-                    .into_string()
-                    .unwrap();
-            }
-            FileType::Mesh => {
-                path = current_dir
-                    .join(ASSETS_PATH)
-                    .join(MESH_PATH)
-                    .join(file_path)
-                    .into_os_string()
-                    .into_string()
-                    .unwrap();
-            }
-            FileType::Material => {
-                path = current_dir
-                    .join(ASSETS_PATH)
-                    .join(MATERIAL_PATH)
-                    .join(file_path)
-                    .into_os_string()
-                    .into_string()
-                    .unwrap();
-            }
-        }
+        let type_path: &str = match f_type {
+            FileType::Material => MATERIAL_PATH,
+            FileType::Shader => SHADER_PATH,
+            FileType::Texture => TEXTURE_PATH,
+            FileType::Mesh => MESH_PATH,
+        };
+
+        path = current_dir
+            .join(ASSETS_PATH)
+            .join(type_path)
+            .join(file_path)
+            .into_os_string()
+            .into_string()
+            .unwrap();
 
         path
     }

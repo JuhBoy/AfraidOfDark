@@ -1,9 +1,11 @@
-use crate::engine::rendering::shaders::ShaderType;
-use std::{cell::RefCell, rc::Rc};
-
 use super::{
-    components::{BufferSettings, FrameBuffer, Rect}, renderer::RenderCmdHd, shaders::{Material, Texture}
+    components::{BufferSettings, FrameBuffer, Rect},
+    renderer::RenderCmdHd,
+    shaders::{Material, Texture},
 };
+use crate::engine::rendering::shaders::ShaderType;
+use glm::Matrix4;
+use std::{cell::RefCell, rc::Rc};
 
 pub struct GfxDevice {
     instance: Rc<dyn GfxApiDevice>,
@@ -43,6 +45,7 @@ pub struct RenderCommand {
 pub trait GfxApiShader {
     fn set_attribute_i32(&self, sp_hdl: u32, _identifier: &str, _value: i32);
     fn set_attribute_f32(&self, sp_hdl: u32, _identifier: &str, _value: f32);
+    fn set_attribute_mat4(&self, sp_hdl: u32, _identifier: &str, _value: &Matrix4<f32>);
     fn set_attribute_bool(&self, sp_hdl: u32, _identifier: &str, _value: bool);
     fn set_attribute_color(&self, sp_hdl: u32, _identifier: &str, _value: glm::Vec4);
     fn set_texture_unit(&self, prog_hdl: u32, texture_pos: i32);
@@ -196,11 +199,7 @@ impl GfxDevice {
         self.instance.clear_buffers();
     }
 
-    pub fn update_texture(
-        &mut self,
-        shader_module: &mut ShaderModule,
-        texture_hdl: u32,
-    ) -> bool {
+    pub fn update_texture(&mut self, shader_module: &mut ShaderModule, texture_hdl: u32) -> bool {
         // Delete GPU textures
         if !shader_module.texture_handles.is_empty() {
             for tex_id in shader_module.texture_handles.iter() {
@@ -208,9 +207,9 @@ impl GfxDevice {
             }
         }
 
-				// Adds the new texture and clear the cached handles
+        // Adds the new texture and clear the cached handles
         shader_module.texture_handles.clear();
-				shader_module.texture_handles.push(texture_hdl);
+        shader_module.texture_handles.push(texture_hdl);
 
         true
     }

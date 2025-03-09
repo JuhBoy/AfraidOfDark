@@ -11,7 +11,7 @@ use crate::engine::{
 pub enum Projection {
     #[default]
     Orthographic,
-    Perspective,
+    Perspective, // It will likely not be implemented
 }
 
 #[derive(Component, Debug, Default)]
@@ -73,5 +73,17 @@ pub struct Inputs {
 
 #[derive(Resource, Debug)]
 pub struct CameraBinding {
-		pub cameras: Vec<(Entity, u32)>, // The entity camera and its associated framebuffer ojbect
+    pub cameras: Vec<(Entity, u32)>, // The entity camera and its associated framebuffer object
+}
+
+// Impls ************************************************************
+
+impl Scale {
+    pub fn one() -> Self {
+        Scale {
+            x: 1.0f32,
+            y: 1.0f32,
+            z: 1.0f32,
+        }
+    }
 }

@@ -48,9 +48,10 @@ pub fn update_camera(inputs: Res<Inputs>, mut query: Query<(Entity, &mut Camera)
 
 pub fn update_system(time: Res<Time>, mut query: Query<(Entity, &mut Transform), Without<Camera>>) {
     for (_entity, mut transform) in query.iter_mut() {
-        let x: &f32 = &transform.position.x;
+        let x: f32 = transform.position.x + (time.time.cos() as f32 * time.delta_time);
+
         transform.position = Position {
-            x: x + 12f32 * &time.delta_time,
+            x,
             y: transform.position.y,
             z: transform.position.z,
         };
@@ -73,7 +74,7 @@ pub fn late_update_system(
         checker.color_timer += _time.delta_time;
 
         if checker.accumulated_time >= 2f32 {
-            let number = _time.frames % 9u64;
+            let number = (_time.frames % 9u64).clamp(1, 9);
             sprite.texture = Option::from(format!("Dark/texture_0{}.png", number));
             checker.accumulated_time = 0f32;
         }
@@ -130,7 +131,7 @@ fn main() {
             Transform {
                 position: Position::default(),
                 rotation: Rotation::default(),
-                scale: Scale::default(),
+                scale: Scale { x: 0.5, y: 0.5, z: 0.5 } ,
             },
             SpriteRenderer2D::from(String::from("Red/texture_08.png"), false),
             ChangeChecker {

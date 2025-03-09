@@ -23,7 +23,7 @@ pub struct ShaderPack {
     pub fragment: Option<ShaderInfo>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Texture {
     pub data: Vec<u8>,
     pub width: u32,

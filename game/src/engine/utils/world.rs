@@ -4,10 +4,12 @@ use std::ops::{Deref, DerefMut};
 
 use bevy_ecs::entity::Entity;
 
-use crate::engine::ecs::components::Projection;
 use crate::engine::ecs::components::{Camera, Transform};
+use crate::engine::ecs::components::Projection;
 use crate::engine::ecs::{components::SpriteRenderer2D, time::RenderingResourcesContainer};
-use crate::engine::rendering::components::{MeshInfo, RenderRequest, RenderUpdate};
+use crate::engine::rendering::components::{
+    MeshInfo, RenderRequest, RenderUpdate, RenderingCamera,
+};
 use crate::engine::rendering::renderer::{RenderCmdHd, Renderer};
 use crate::engine::rendering::renderer_helpers::prepare_material;
 use crate::engine::rendering::shaders::Material;
@@ -57,6 +59,9 @@ impl World {
             let entity_ref: bevy_ecs::world::EntityRef<'_> = self.m_world.entity(entity.clone());
 
             if let Some(comp) = entity_ref.get::<SpriteRenderer2D>() {
+                let transform = entity_ref
+                    .get::<Transform>()
+                    .expect("Entity have no transform");
                 let handle: RenderCmdHd = renderer.create_render_command(RenderRequest {
                     mesh_info: MeshInfo {
                         // Todo: Will be default until mesh is implemented
@@ -65,6 +70,7 @@ impl World {
                         vertices_set: None,
                     },
                     material: prepare_material(comp, comp.material.as_ref()),
+                    transform: transform.clone(),
                 });
 
                 let links_len: usize = self.rhandle_links.borrow().len();
@@ -110,14 +116,13 @@ impl World {
         }
 
         for updated_entity in container.updated_2d_render.iter() {
-            println!("[TODO]: updated entity {:?}", updated_entity); // todo! implement changes there.
             let link_index: usize = self
                 .rhandle_to_link_index
                 .borrow()
                 .get(updated_entity)
                 .unwrap()
                 .clone();
-            let rhandle: RenderCmdHd = self
+            let cmd_handle: RenderCmdHd = self
                 .rhandle_links
                 .borrow()
                 .get(link_index.clone())
@@ -125,10 +130,9 @@ impl World {
                 .0
                 .clone();
 
-            let component: &SpriteRenderer2D = world
-                .get::<SpriteRenderer2D>(*updated_entity)
-                .as_ref()
-                .unwrap();
+            let component: &SpriteRenderer2D =
+                world.get::<SpriteRenderer2D>(*updated_entity).unwrap();
+            let transform: &Transform = world.get::<Transform>(*updated_entity).unwrap();
 
             // Blit the texture from the sprite component to the rendering material sprite
             let new_material: Option<Material> =
@@ -139,9 +143,10 @@ impl World {
                 });
 
             renderer.update_render_command(RenderUpdate {
-                render_cmd: rhandle,
+                render_cmd: cmd_handle,
                 mesh_info: None,
                 material: new_material,
+                transform: Option::from(transform.clone()),
             });
         }
 
@@ -159,11 +164,45 @@ impl World {
     }
 
     pub fn flush_camera_changes(&mut self, renderer: &mut Renderer) {
-        let camera = self.m_world.entity(self.main_camera);
-        let camera_component = camera.get::<Camera>().unwrap();
-        let (x, y, w, h) = camera_component.viewport.clone();
+        let world: &mut bevy_ecs::world::World = &mut self.m_world;
+        let camera = world.entity(self.main_camera);
 
-        renderer.update_viewport(x, y, w, h);
+        // Flush viewport in case of any changes
+        {
+            let camera_component = camera.get::<Camera>().unwrap();
+            let (x, y, w, h) = camera_component.viewport.clone();
+            renderer.update_viewport(x, y, w, h);
+        }
+
+        let resources = world.get_resource::<RenderingResourcesContainer>().unwrap();
+
+        for entity in resources.updated_camera_settings.iter() {
+            const DEFAULT_BACKGROUND_COLOR: [f32; 3] = [1.0, 1.0, 1.0];
+
+            let camera_comp: &Camera = world.get::<Camera>(*entity).unwrap();
+            let transform_comp: &Transform = world.get::<Transform>(*entity).unwrap();
+            let background_color = camera_comp
+                .background_color
+                .unwrap_or(DEFAULT_BACKGROUND_COLOR);
+
+            renderer.update_camera_settings(RenderingCamera {
+                near: camera_comp.near,
+                far: camera_comp.far,
+                background_color,
+                transform: transform_comp.clone(),
+            });
+        }
+
+        for entity in resources.updated_camera_transform.iter() {
+            let camera_comp: &Transform = world.get::<Transform>(*entity).unwrap();
+            renderer.update_camera_transform(camera_comp.clone());
+        }
+
+        let mut mut_container = world
+            .get_resource_mut::<RenderingResourcesContainer>()
+            .unwrap();
+        mut_container.updated_camera_settings.clear();
+        mut_container.updated_camera_transform.clear();
     }
 
     pub fn get_main_camera(&self) -> Entity {
