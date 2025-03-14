@@ -38,7 +38,7 @@
 
 ## In Progress / Planned
 
-- [ ] Implement background color clear using camera settings
+- [X] Implement background color clear using camera settings
 - [ ] Implement camera frustum culling
 - [ ] Add preserve aspect ratio option for Sprite2D (integrate changes in ECS, Renderer, and Shader)
 - [ ] Add sorting layer for Sprite2D (integrate changes in ECS and Renderer)

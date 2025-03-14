@@ -190,7 +190,7 @@ impl World {
                 near: camera_comp.near,
                 far: camera_comp.far,
                 ppu: camera_comp.ppu,
-                background_color,
+                clear_color: background_color,
                 transform: transform_comp.clone(),
             });
         }

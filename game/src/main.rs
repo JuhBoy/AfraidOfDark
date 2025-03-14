@@ -8,6 +8,7 @@ use engine::ecs::time::Time;
 use engine::lib::runtime::App;
 
 use crate::engine::ecs::components::Position;
+use crate::engine::rendering::components::ARGB8Color;
 use engine::utils::app_settings::{ApplicationSettings, WindowMode, WindowSettings};
 use glm::{abs, vec4};
 use rand::random;
@@ -205,6 +206,17 @@ fn main() {
                 },
             ));
         }
+
+        let cam = world.get_main_camera();
+        let mut camera_entity = world.entity_mut(cam);
+        let mut camera = camera_entity.get_mut::<Camera>().unwrap();
+
+        camera.background_color = Option::from(ARGB8Color {
+            r: 100,
+            g: 149,
+            b: 150,
+            a: 255,
+        });
     }
 
     match app.run() {

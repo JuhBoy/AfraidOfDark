@@ -104,7 +104,7 @@ impl Renderer {
                 near: 0.1,
                 far: 50.0,
                 ppu: 380u32,
-                background_color: ARGB8Color::black(),
+                clear_color: ARGB8Color::black(),
                 transform: Transform::default(),
             },
             updates_state: RenderingUpdateState {
@@ -437,7 +437,7 @@ impl Renderer {
         gfx_device.update_viewport(viewport);
 
         gfx_device.use_framebuffer(Option::from(&self.main_framebuffer));
-        gfx_device.clear();
+        gfx_device.clear(self.main_camera.clear_color);
 
         // rendering_pass. WIP -> will be multithreaded at end
         let rendering_queue = &mut self.rendering_store.renderer_queue;
@@ -468,7 +468,7 @@ impl Renderer {
 
         // Back to screen buffer
         gfx_device.use_framebuffer(None);
-        gfx_device.clear();
+        gfx_device.clear(self.main_camera.clear_color);
 
         let normalized_screen_viewport = self.viewport_normalized.clone().into_inner();
         let pixel_screen_viewport: Rect<u32> =

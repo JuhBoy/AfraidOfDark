@@ -9,7 +9,7 @@ use std::ffi::CString;
 use std::mem::size_of;
 use std::ptr;
 
-use super::components::{BufferSettings, FrameBuffer};
+use super::components::{ARGB8Color, BufferSettings, FrameBuffer};
 use super::shaders::Texture;
 
 #[derive(Default)]
@@ -401,9 +401,14 @@ impl GfxApiDevice for GfxDeviceOpengl {
         }
     }
 
-    fn clear_color(&self) {
+    fn clear_color(&self, color: ARGB8Color) {
+        let red: f32 = color.r as f32 / 255.0;
+        let green: f32 = color.g as f32 / 255.0;
+        let blue: f32 = color.b as f32 / 255.0;
+        let alpha: f32 = 1f32;
+
         unsafe {
-            gl::ClearColor(0f32, 0f32, 0f32, 1.0f32);
+            gl::ClearColor(red, green, blue, alpha);
         }
     }
 

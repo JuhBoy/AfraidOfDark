@@ -6,6 +6,7 @@ use super::{
 use crate::engine::rendering::shaders::ShaderType;
 use glm::Matrix4;
 use std::{cell::RefCell, rc::Rc};
+use crate::engine::rendering::components::ARGB8Color;
 
 pub struct GfxDevice {
     instance: Rc<dyn GfxApiDevice>,
@@ -85,7 +86,7 @@ pub trait GfxApiDevice {
     // Drawing
     // ======================
     fn draw_command(&self, command: &RenderCommand);
-    fn clear_color(&self);
+    fn clear_color(&self, color: ARGB8Color);
     fn update_viewport(&self, x: u32, y: u32, width: u32, height: u32);
     fn set_update_viewport_callback(
         &self,
@@ -198,8 +199,8 @@ impl GfxDevice {
         self.instance.set_update_viewport_callback(window, viewport);
     }
 
-    pub fn clear(&self) {
-        self.instance.clear_color();
+    pub fn clear(&self, color: ARGB8Color) {
+        self.instance.clear_color(color);
         self.instance.clear_buffers();
     }
 }
