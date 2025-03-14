@@ -6,6 +6,7 @@ use crate::engine::{
     inputs::keyboard::Keyboard,
     rendering::{renderer::RenderCmdHd, shaders::Material},
 };
+use crate::engine::rendering::components::ARGB8Color;
 
 #[derive(Debug, Default)]
 pub enum Projection {
@@ -19,11 +20,12 @@ pub struct Camera {
     pub fov: f32,
     pub near: f32,
     pub far: f32,
+    pub ppu: f32,
 
     pub viewport: (f32, f32, f32, f32), // NDC
     pub mode: Projection,
     pub output_target: Option<u128>,
-    pub background_color: Option<[f32; 3]>,
+    pub background_color: Option<ARGB8Color>,
 }
 
 #[derive(Component, Debug, Clone, Copy, Default)]

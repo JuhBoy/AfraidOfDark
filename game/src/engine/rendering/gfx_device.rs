@@ -141,6 +141,10 @@ impl GfxDevice {
     pub fn alloc_texture(&self, sp_hdl: u32, texture: &Texture) -> u32 {
         self.instance.alloc_texture(sp_hdl, texture)
     }
+    
+    pub fn release_texture(&self, tex_id: u32) {
+        self.instance.release_texture(tex_id);
+    }
 
     // ======================
     // Buffers
@@ -199,18 +203,4 @@ impl GfxDevice {
         self.instance.clear_buffers();
     }
 
-    pub fn update_texture(&mut self, shader_module: &mut ShaderModule, texture_hdl: u32) -> bool {
-        // Delete GPU textures
-        if !shader_module.texture_handles.is_empty() {
-            for tex_id in shader_module.texture_handles.iter() {
-                self.instance.release_texture(*tex_id);
-            }
-        }
-
-        // Adds the new texture and clear the cached handles
-        shader_module.texture_handles.clear();
-        shader_module.texture_handles.push(texture_hdl);
-
-        true
-    }
 }

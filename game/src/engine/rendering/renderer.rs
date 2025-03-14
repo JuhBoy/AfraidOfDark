@@ -1,10 +1,11 @@
 extern crate gl;
 extern crate glfw;
-use super::components::{Rect, RenderUpdate, RenderingCamera};
+use super::components::{ARGB8Color, Rect, RenderUpdate, RenderingCamera, RenderingUpdateState};
 use super::gfx_device::BufferModule;
 use super::renderer_helpers::{
     compute_gfx_viewport_rect, get_material_changes, get_shader_info_or_default,
-    MaterialUpdateMask, COLOR_MASK, TEXTURE_MASK, TRANSFORM_MASK,
+    shader_texture_update, MaterialUpdateMask, TextureUpdateReq, COLOR_MASK, TEXTURE_MASK,
+    TRANSFORM_MASK,
 };
 use super::{
     components::{BufferSettings, FrameBuffer, RenderRequest, RenderState},
@@ -16,7 +17,7 @@ use super::{
 use crate::engine::ecs::components::Transform;
 use crate::engine::rendering::gfx_device::GfxDevice;
 use crate::engine::rendering::opengl::GfxDeviceOpengl;
-use crate::engine::utils::maths::compute_trs;
+use crate::engine::utils::maths::{compute_projection, compute_trs, compute_view_matrix};
 use crate::{
     engine::{
         inputs::keyboard::Keyboard, logging::logs_traits::LoggerBase,
@@ -28,9 +29,9 @@ use glfw::ffi::glfwWindowHint;
 use glfw::{ffi::glfwInit, Action, Context, Glfw, GlfwReceiver, Key, PWindow, WindowEvent};
 use glm::{Matrix4, Vector4};
 use std::cell::{Ref, RefMut};
+use std::ops::{Deref, DerefMut};
 use std::{
     cell::RefCell,
-    collections::{HashMap, VecDeque},
     rc::Rc,
     sync::{Arc, Mutex},
 };
@@ -44,6 +45,7 @@ pub struct Renderer {
     rendering_store: RendererStorage,
     viewport_rect: RefCell<glm::Vector4<f32>>, // x, y, width, height (Range is [0; 1])
     main_camera: RenderingCamera,
+    updates_state: RenderingUpdateState,
 
     main_framebuffer: Option<FrameBuffer>,
     screen_shader_module: Option<ShaderModule>,
@@ -90,16 +92,18 @@ impl Renderer {
         Self {
             keyboard_inputs: Arc::from(Mutex::from(Keyboard::new())),
             rendering_state: RenderState::Closed,
-            rendering_store: RendererStorage {
-                render_command_storage: HashMap::new(),
-                renderer_queue: VecDeque::new(),
-            },
+            rendering_store: RendererStorage::new(),
             viewport_rect: RefCell::new(glm::vec4(0.0, 0.0, 1.0, 1.0)),
             main_camera: RenderingCamera {
                 near: 0.1,
-                far: 100.0,
-                background_color: [1.0f32, 1.0f32, 1.0f32],
+                far: 50.0,
+                ppu: 100f32,
+                background_color: ARGB8Color::black(),
                 transform: Transform::default(),
+            },
+            updates_state: RenderingUpdateState {
+                camera_settings: false,
+                camera_transform: false,
             },
 
             main_framebuffer: None,
@@ -247,8 +251,20 @@ impl Renderer {
         );
 
         if let Some(tex_name) = render_req.material.main_texture.as_ref() {
-            let texture = self.rendering_store.load_texture(&tex_name).ok().unwrap();
-            let texture_handle: u32 = gfx.alloc_texture(shader_module.self_handle, &texture);
+            let texture_handle: u32;
+
+            // Try to load the gpu handle if possible, otherwise allocate a new texture on the gpu side
+            if !self.rendering_store.has_gpu_texture_refs(tex_name) {
+                let texture = self.rendering_store.load_texture(&tex_name).ok().unwrap();
+                texture_handle = gfx.alloc_texture(shader_module.self_handle, &texture);
+
+                // Store the newly created rendering handle to prevent duplicates allocation
+                self.rendering_store
+                    .increment_texture_handle(tex_name, texture_handle);
+            } else {
+                // This can panic if the tex_name key doesn't exit
+                texture_handle = self.rendering_store.get_gpu_texture_handle(tex_name);
+            }
 
             const DEFAULT_TEXTURE_IDX: i32 = 0;
             gfx.shader_api
@@ -262,10 +278,17 @@ impl Renderer {
             shader_module.material.color,
         );
 
-        // compute the TRS matrix and forward it to the GPU device
+        // compute the TRS, View and Proj matrix and forward them to the GPU device
         let trs_matrix: Matrix4<f32> = compute_trs(&render_req.transform);
+        let view_matrix: Matrix4<f32> = compute_view_matrix(&self.main_camera.transform);
+        let proj_matrix: Matrix4<f32> = compute_projection(&self.main_camera);
+
         gfx.shader_api
             .set_attribute_mat4(shader_module.self_handle, "TRS", &trs_matrix);
+        gfx.shader_api
+            .set_attribute_mat4(shader_module.self_handle, "VIEW", &view_matrix);
+        gfx.shader_api
+            .set_attribute_mat4(shader_module.self_handle, "PROJ", &proj_matrix);
 
         let command: RenderCommand = gfx.build_command(shader_module, buffer_module);
         let command_handle = self.rendering_store.store_command(command, true);
@@ -274,13 +297,11 @@ impl Renderer {
     }
 
     pub fn update_render_command(&mut self, update_req: RenderUpdate) -> bool {
-        let mut command: RefMut<RenderCommand> =
-            self.rendering_store.get_mut_ref(update_req.render_cmd);
-
         let mut update_mask: MaterialUpdateMask = 0u8;
 
-        // check changes in material properties
+        // check changes in material properties and construct mask
         if !update_req.material.is_none() {
+            let command: Ref<RenderCommand> = self.rendering_store.get_ref(update_req.render_cmd);
             let current: &Material = &command.shader_module.material;
             let updated: &Material = update_req.material.as_ref().unwrap();
             update_mask = get_material_changes(current, updated);
@@ -297,6 +318,8 @@ impl Renderer {
         let gpu: &mut GfxDevice = self.gfx_device.as_deref_mut().expect("gfx_device not init");
 
         if (update_mask & COLOR_MASK) != 0 {
+            let mut command: RefMut<RenderCommand> =
+                self.rendering_store.get_mut_ref(update_req.render_cmd);
             let new_color: Vector4<f32> = update_req.material.as_ref().unwrap().color;
 
             gpu.shader_api.set_attribute_color(
@@ -317,27 +340,44 @@ impl Renderer {
                 .as_ref()
                 .unwrap();
 
-            match self.rendering_store.load_texture(texture_name) {
-                Ok(texture) => {
-                    // Updates gpu information for the command
-                    let texture_handle: u32 =
-                        gpu.alloc_texture(command.shader_module.self_handle, &texture);
-                    gpu.update_texture(&mut command.shader_module, texture_handle);
+            let texture_handle: Option<u32>;
 
-                    // Update the CPU texture name
-                    command.shader_module.material.main_texture =
-                        Option::from(texture_name.clone());
+            if self.rendering_store.has_gpu_texture_refs(texture_name) {
+                texture_handle =
+                    Option::from(self.rendering_store.get_gpu_texture_handle(texture_name));
+            } else {
+                match self.rendering_store.load_texture(texture_name) {
+                    Ok(texture) => {
+                        let shader_hdl = self
+                            .rendering_store
+                            .get_ref(update_req.render_cmd)
+                            .shader_module
+                            .self_handle;
+                        texture_handle = Option::from(gpu.alloc_texture(shader_hdl, &texture));
+                    }
+                    Err(err) => {
+                        println!(
+                            "[Renderer]: Abort texture update. Failed to load texture {}",
+                            err
+                        );
+                        texture_handle = None;
+                    }
                 }
-                Err(err) => {
-                    println!(
-                        "[Renderer]: Abort texture update. Failed to load texture {}",
-                        err
-                    )
-                }
+            }
+
+            if let Some(gpu_handle) = texture_handle {
+                shader_texture_update(
+                    &mut self.rendering_store,
+                    TextureUpdateReq {
+                        handle: update_req.render_cmd.clone(),
+                        input_texture_handle: Option::from((texture_name.clone(), gpu_handle)),
+                    },
+                );
             }
         }
 
         if (update_mask & TRANSFORM_MASK) != 0 {
+            let command = self.rendering_store.get_ref(update_req.render_cmd);
             let new_trs_mat4: Matrix4<f32> = compute_trs(update_req.transform.as_ref().unwrap());
             gpu.shader_api.set_attribute_mat4(
                 command.shader_module.self_handle,
@@ -373,13 +413,12 @@ impl Renderer {
 
     pub fn update_camera_settings(&mut self, camera_update: RenderingCamera) {
         self.main_camera = camera_update;
-        println!("[Renderer] Update camera settings {:?}", &self.main_camera);
+        self.updates_state.camera_settings = true;
     }
 
     pub fn update_camera_transform(&mut self, transform: Transform) {
-        // todo! Update the camera transform and compute once and for all the orth projection
         self.main_camera.transform = transform;
-        println!("[Renderer]: Update camera transform {:?}", &transform);
+        self.updates_state.camera_transform = true;
     }
 
     pub fn render(&mut self, _delta_time: f32) {
@@ -409,6 +448,23 @@ impl Renderer {
             if let Some(cmd_ptr) = rendering_queue.pop_front() {
                 let command: Ref<RenderCommand> = cmd_ptr.borrow();
                 gfx_device.use_shader_module(&command.shader_module);
+
+                // only updates VIEW/PROJ matrix if the camera transform/settings changed
+                if self.updates_state.camera_transform {
+                    gfx_device.shader_api.set_attribute_mat4(
+                        command.shader_module.self_handle,
+                        "VIEW",
+                        &compute_view_matrix(&self.main_camera.transform),
+                    );
+                }
+                if self.updates_state.camera_settings {
+                    gfx_device.shader_api.set_attribute_mat4(
+                        command.shader_module.self_handle,
+                        "PROJ",
+                        &compute_projection(&self.main_camera),
+                    );
+                }
+
                 gfx_device.draw_command(&command);
             }
         }
@@ -427,6 +483,16 @@ impl Renderer {
             self.screen_quad_buffer.as_ref().unwrap(),
             self.main_framebuffer.as_ref().unwrap(),
         );
+
+        // Release all dangling textures
+        self.rendering_store.iter_dangling_textures(|name, hdl| {
+            println!("[Renderer] Release textures {} {}", name, hdl);
+            gfx_device.release_texture(hdl);
+        });
+
+        // Reset the various states for the current frame
+        self.rendering_store.reset_frame();
+        self.updates_state.reset();
 
         self.window.swap_buffers();
         self.poll_events();

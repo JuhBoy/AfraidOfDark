@@ -5,10 +5,10 @@ use std::ops::{Deref, DerefMut};
 use bevy_ecs::entity::Entity;
 
 use crate::engine::ecs::components::{Camera, Transform};
-use crate::engine::ecs::components::Projection;
+use crate::engine::ecs::components::{Position, Projection};
 use crate::engine::ecs::{components::SpriteRenderer2D, time::RenderingResourcesContainer};
 use crate::engine::rendering::components::{
-    MeshInfo, RenderRequest, RenderUpdate, RenderingCamera,
+    ARGB8Color, MeshInfo, RenderRequest, RenderUpdate, RenderingCamera,
 };
 use crate::engine::rendering::renderer::{RenderCmdHd, Renderer};
 use crate::engine::rendering::renderer_helpers::prepare_material;
@@ -32,14 +32,19 @@ impl World {
                     Camera {
                         fov: 80.0,
                         near: 0.1,
-                        far: 100.0,
+                        far: 50.0,
+                        ppu: 100f32,
                         viewport: (0.0, 0.0, 1.0, 1.0),
                         mode: Projection::Orthographic,
                         output_target: Option::None,
                         background_color: Option::None,
                     },
                     Transform {
-                        position: Default::default(),
+                        position: Position {
+                            x: 0.0,
+                            y: 0.0,
+                            z:-1.0,
+                        },
                         rotation: Default::default(),
                         scale: Default::default(),
                     },
@@ -129,11 +134,11 @@ impl World {
                 .unwrap()
                 .0
                 .clone();
-
+        
             let component: &SpriteRenderer2D =
                 world.get::<SpriteRenderer2D>(*updated_entity).unwrap();
             let transform: &Transform = world.get::<Transform>(*updated_entity).unwrap();
-
+        
             // Blit the texture from the sprite component to the rendering material sprite
             let new_material: Option<Material> =
                 component.material.as_ref().map(|map: &Material| {
@@ -141,7 +146,7 @@ impl World {
                     new_material.main_texture = component.texture.clone();
                     return new_material;
                 });
-
+            
             renderer.update_render_command(RenderUpdate {
                 render_cmd: cmd_handle,
                 mesh_info: None,
@@ -177,17 +182,14 @@ impl World {
         let resources = world.get_resource::<RenderingResourcesContainer>().unwrap();
 
         for entity in resources.updated_camera_settings.iter() {
-            const DEFAULT_BACKGROUND_COLOR: [f32; 3] = [1.0, 1.0, 1.0];
-
             let camera_comp: &Camera = world.get::<Camera>(*entity).unwrap();
             let transform_comp: &Transform = world.get::<Transform>(*entity).unwrap();
-            let background_color = camera_comp
-                .background_color
-                .unwrap_or(DEFAULT_BACKGROUND_COLOR);
+            let background_color = camera_comp.background_color.unwrap_or(ARGB8Color::black());
 
             renderer.update_camera_settings(RenderingCamera {
                 near: camera_comp.near,
                 far: camera_comp.far,
+                ppu: camera_comp.ppu,
                 background_color,
                 transform: transform_comp.clone(),
             });

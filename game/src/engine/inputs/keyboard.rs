@@ -7,7 +7,7 @@ pub struct Keyboard {
 }
 
 fn is_release(state: i32) -> bool {
-   state & (1 << 1) != 0
+    state & (1 << 1) != 0
 }
 
 fn is_pressed(state: i32) -> bool {
@@ -16,6 +16,7 @@ fn is_pressed(state: i32) -> bool {
 
 fn compute_state(action: glfw::Action, _modifier: glfw::Modifiers) -> i32 {
     let mut result: i32 = 0;
+
     if action == glfw::Action::Press {
         result = result | 1;
     } else if action == glfw::Action::Release {
@@ -72,6 +73,10 @@ impl Keyboard {
                 (glfw::Key::T, 37),
                 (glfw::Key::U, 38),
                 (glfw::Key::V, 39),
+                (glfw::Key::W, 87),
+                (glfw::Key::X, 88),
+                (glfw::Key::Y, 89),
+                (glfw::Key::Z, 90),
                 (glfw::Key::LeftBracket, 40),
                 (glfw::Key::Backslash, 41),
                 (glfw::Key::RightBracket, 42),
@@ -119,10 +124,6 @@ impl Keyboard {
                 (glfw::Key::F20, 84),
                 (glfw::Key::F21, 85),
                 (glfw::Key::F22, 86),
-                (glfw::Key::F23, 87),
-                (glfw::Key::F24, 88),
-                (glfw::Key::F25, 89),
-                (glfw::Key::Kp0, 90),
                 (glfw::Key::Kp1, 91),
                 (glfw::Key::Kp2, 92),
                 (glfw::Key::Kp3, 93),
@@ -200,13 +201,18 @@ impl Keyboard {
             return;
         }
 
+        // We don't handle "Repeat state" for now
+        if action == glfw::Action::Repeat {
+            return;
+        }
+
         // Access the memory addresse of the key slot and update the value
         let index: usize = *self.keys_mapping.get(&key).unwrap();
         let key_slot: &mut i32 = &mut self.keys_state_lookup[index];
         *key_slot = compute_state(action, modifier);
     }
 
-		// Clear states like "released" at frame N+1 before new states occures
+    // Clear states like "released" at frame N+1 before new states occures
     pub fn pre_update_states(&mut self) {
         for key in self.keys_state_lookup.as_mut() {
             if is_release(*key) {

@@ -1,4 +1,5 @@
 use crate::engine::ecs::components::{Position, Scale, Transform};
+use crate::engine::rendering::components::RenderingCamera;
 use glm::{vec3, BaseFloat, Matrix4};
 
 pub fn identity_mat4() -> Matrix4<f32> {
@@ -55,4 +56,45 @@ pub fn compute_trs(transform: &Transform) -> Matrix4<f32> {
     trs_matrix = mat4_scale(&mut trs_matrix, &transform.scale);
 
     trs_matrix
+}
+
+pub fn compute_view_matrix(transform: &Transform) -> Matrix4<f32> {
+    // Compute the camera view matrix (which gets it's translation vector negated to move other objects to the camera)
+    let view_matrix: Matrix4<f32> = glm::Matrix4::new(
+        glm::vec4(1.0, 0.0, 0.0, 0f32),
+        glm::vec4(0.0, 1.0, 0.0, 0f32),
+        glm::vec4(0.0, 0.0, 1.0, 0f32),
+        glm::vec4(
+            -transform.position.x,
+            -transform.position.y,
+            -transform.position.z,
+            1.0,
+        ),
+    );
+
+    view_matrix
+}
+
+pub fn compute_projection(camera: &RenderingCamera) -> Matrix4<f32> {
+    let width = 800f32 / camera.ppu;
+    let height = 600f32 / camera.ppu;
+    let h_w = width * 0.5f32;
+    let h_h = height * 0.5f32;
+    let right = h_w;
+    let left = -h_w;
+    let top = h_h;
+    let bot = -h_h;
+    let near = camera.near;
+    let far = camera.far;
+
+    let mut orthographic_projection = identity_mat4();
+
+    orthographic_projection.c0.x = 2f32 / (right - left);
+    orthographic_projection.c1.y = 2f32 / (top - bot);
+    orthographic_projection.c2.z = 2f32 / (far - near);
+    orthographic_projection.c3.x = -(right + left) / (right - left);
+    orthographic_projection.c3.y = -(top + bot) / (top - bot);
+    orthographic_projection.c3.z = -(far + near) / (far - near);
+
+    orthographic_projection
 }

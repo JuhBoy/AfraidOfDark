@@ -4,12 +4,22 @@ use super::{
 };
 use crate::engine::ecs::components::SpriteRenderer2D;
 use crate::engine::rendering::components::RenderRequest;
+use crate::engine::rendering::gfx_device::RenderCommand;
+use crate::engine::rendering::renderer::RenderCmdHd;
+use crate::engine::rendering::renderer_storage::RendererStorage;
 use crate::engine::rendering::shaders::{ShaderInfo, ShaderType};
+use std::cell::RefMut;
 
 pub type MaterialUpdateMask = u8;
 pub const TEXTURE_MASK: u8 = 1 << 0;
 pub const COLOR_MASK: u8 = 1 << 1;
 pub const TRANSFORM_MASK: u8 = 1 << 2;
+
+#[derive(Clone, Debug)]
+pub struct TextureUpdateReq {
+    pub handle: RenderCmdHd,
+    pub input_texture_handle: Option<(String, u32)>,
+}
 
 pub fn get_shader_info_or_default(render_request: &RenderRequest) -> [ShaderInfo; 2] {
     let vert_default: ShaderInfo = ShaderInfo::default(ShaderType::Vertex);
@@ -47,7 +57,7 @@ pub fn prepare_material(sprite: &SpriteRenderer2D, material: Option<&Material>) 
         };
     }
 
-    return Material {
+    Material {
         color: glm::Vector4 {
             x: 1f32,
             y: 1f32,
@@ -61,7 +71,7 @@ pub fn prepare_material(sprite: &SpriteRenderer2D, material: Option<&Material>) 
             fragment: None,
         },
         pixel_per_unit: 100,
-    };
+    }
 }
 
 pub fn compute_gfx_viewport_rect(viewport: &glm::Vector4<f32>, window: &glfw::Window) -> Rect<u32> {
@@ -89,11 +99,6 @@ pub fn get_material_changes(
     if updating_mat.main_texture.is_some()
         && updating_mat.main_texture != rendering_mat.main_texture
     {
-        println!(
-            "{} -> {}",
-            updating_mat.main_texture.as_ref().unwrap(),
-            rendering_mat.main_texture.as_ref().unwrap()
-        );
         update_mask |= TEXTURE_MASK;
     }
     if rendering_mat.color != updating_mat.color {
@@ -101,4 +106,31 @@ pub fn get_material_changes(
     }
 
     update_mask
+}
+
+pub fn shader_texture_update(store: &mut RendererStorage, request: TextureUpdateReq) {
+    let prev_texture = store
+        .get_ref(request.handle)
+        .shader_module
+        .material
+        .main_texture
+        .clone();
+
+    // If there was a previous texture reduce ref count from the store 
+    if let Some(previous_texture) = prev_texture {
+        store.decrement_texture_handle(&previous_texture);
+    }
+    // Adds the input texture to store (either increments or adds to the ref count)
+    if let Some((tex_name, handle)) = request.input_texture_handle.as_ref() {
+        store.increment_texture_handle(&tex_name, *handle);
+    }
+
+    // Clear all previous texture handles and adds the input texture to the render command
+    // This is done that way because multi texturing is not yet implemented
+    let mut command: RefMut<RenderCommand> = store.get_mut_ref(request.handle);
+    command.shader_module.texture_handles.clear();
+    if let Some((tex_name, handle)) = &request.input_texture_handle {
+        command.shader_module.texture_handles.push(*handle);
+        command.shader_module.material.main_texture = Option::from(tex_name.clone());
+    }
 }

@@ -321,13 +321,18 @@ impl GfxApiDevice for GfxDeviceOpengl {
             gl::UseProgram(prog_hdl);
 
             let mut tex_hdl: u32 = 0;
-            gl::GenTextures(1, ptr::addr_of_mut!(tex_hdl) as *mut u32);
+            gl::GenTextures(1, &mut tex_hdl);
             gl::BindTexture(gl::TEXTURE_2D, tex_hdl);
+
+            let error = gl::GetError();
+            if error != gl::NO_ERROR {
+                println!("OpenGL error: {}", error);
+            }
 
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
 
             let internal_format = if texture.channels == 3 {
                 gl::RGB as i32

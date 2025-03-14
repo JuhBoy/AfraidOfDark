@@ -16,13 +16,40 @@ files:
 			[x] Actually neededing to rework the alloc_buffer form gfx device opengl to allow quad with no indices for rendering the screen shader with 2D vertex
 			[x] Refacto FrameBuffer object to make it more clear what is used as screen sampling (probably needs to extract the shaders and buffers object)
 [x] - Update Camera changes from ECS to the rendering system via shader_api (uniforms)
-[o] - Update Transform of SpriteRenderer2D from ECS to the rendering system via shader_api (uniforms)
+[x] - Update Transform of SpriteRenderer2D from ECS to the rendering system via shader_api (uniforms)
 	[x] Create TRS matrix for entities (+ pass transform data from ECS to rendering)
-	[ ] Store camera information to GFX device (Size, pixel per unit, etc..)
-	[ ] Create orthographic projection from camera data 
-	[ ] Adds MVP matrix to shaders
-	[ ] Apply MPV matrix from CPU side
-[ ] - Adds orthographic projection to the shader_api
+	[x] Store camera information to GFX device (Size, pixel per unit, etc..)
+	[x] Adding clearing color to the camera data 
+	[x] Create orthographic projection from camera data 
+	[x] Adds MVP matrix to shaders
+	[x] Apply MPV matrix from CPU side
+[x] - Adds orthographic projection to the shader_api
+[x] Implements caching system (super naive) for textures
+	[x] adds post frame rendering texture clears
+	[x] adds frame storage state with reference counting for textures
+[x] Add String to Gpu Handle cache storage to prevent duplicates allocation
+[ ] Implements background color clear using camera settings
+[ ] Implements camera Frustrum culling
+[ ] Adds preserve aspect ratio option for Sprite2D (ECS + Renderer + Shader)
+[ ] Adds sorting layer for Sprite2D (ECS + Renderer)
+[ ] Small Optims => (shader sharing, PriorityQueue sorting)
+	[ ] Use Pixel buffer object to update texture when size match
+	[ ] create storage hash function to prevent cloning String when dealing with texture
+[ ] File System
+	[ ] Add threaded async loading for texture
+	[ ] Implements async Queue for RendererStorage
+	[ ] Implements async Rendering for OpenGL layer
+[ ] Rendering Pipeline (TBD: probably deferred)
+	[ ] Shaders
+		[ ] Luminance, Diffuse, Specular, Texture Mapping
+		[ ] Small compiler with header inclusion
+	[ ] Light sources
+		[ ] Point Light (ECS + Renderer)
+		[ ] Spot Light (ECS + Renderer)
+		[ ] Global Light (ECS + Renderer)
+	[ ] Shadow map
+	[ ] Stencil
+[ ] ... Animators, Sprite Atlas, Maps & Scenes serialization
 
 [File System and Profiling]
 [ ] Implement Tracy crate profiler

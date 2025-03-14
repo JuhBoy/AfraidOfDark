@@ -65,7 +65,6 @@ pub fn update_camera_transform_system(
     query: Query<(Entity, &Camera), Changed<Transform>>,
 ) {
     query.iter().for_each(|(entity, camera)| {
-        println!("[Camera Entity]: entity {} updated", &entity);
         container.updated_camera_transform.push(entity);
     });
 }

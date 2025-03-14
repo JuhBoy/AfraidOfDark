@@ -20,9 +20,17 @@ pub struct FrameBuffer {
 pub struct RenderingCamera {
     pub near: f32,
     pub far: f32,
-    pub background_color: [f32; 3],
-    
+    pub ppu: f32,
+    pub background_color: ARGB8Color,
+
     pub transform: Transform,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct RenderingUpdateState {
+    pub camera_settings: bool,
+    pub camera_transform: bool,
+    // ...
 }
 
 pub struct MeshInfo {
@@ -58,6 +66,14 @@ pub struct Rect<T> {
     pub height: T,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct ARGB8Color {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+}
+
 impl BufferSettings {
     pub fn quad_default() -> BufferSettings {
         BufferSettings {
@@ -65,5 +81,32 @@ impl BufferSettings {
             vertex_size: 3,
             uvs_size: 2,
         }
+    }
+}
+
+impl ARGB8Color {
+    pub fn black() -> ARGB8Color {
+        ARGB8Color {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 255,
+        }
+    }
+
+    pub fn white() -> ARGB8Color {
+        ARGB8Color {
+            r: 1u8,
+            g: 1u8,
+            b: 1u8,
+            a: 255,
+        }
+    }
+}
+
+impl RenderingUpdateState { 
+    pub fn reset(&mut self) { 
+        self.camera_settings = false;
+        self.camera_transform = false;
     }
 }

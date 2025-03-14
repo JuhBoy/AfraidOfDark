@@ -17,6 +17,7 @@ dependencies = [
  "glfw",
  "glm",
  "image",
+ "rand 0.4.6",
  "term",
 ]
 

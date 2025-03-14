@@ -7,11 +7,10 @@ use engine::ecs::config::{EcsFixedUpdateSchedule, EcsLateUpdateSchedule, EcsUpda
 use engine::ecs::time::Time;
 use engine::lib::runtime::App;
 
-use engine::rendering::shaders::Material;
-use engine::utils::app_settings::{ApplicationSettings, WindowMode, WindowSettings};
-use glm::vec4;
-
 use crate::engine::ecs::components::Position;
+use engine::utils::app_settings::{ApplicationSettings, WindowMode, WindowSettings};
+use glm::{abs, vec4};
+use rand::random;
 
 pub mod engine;
 
@@ -34,20 +33,62 @@ pub fn update_camera(inputs: Res<Inputs>, mut query: Query<(Entity, &mut Camera)
 
         let keyboard = inputs.keyboard.lock().unwrap();
 
-        if keyboard.is_key_released(glfw::Key::A) {
+        if keyboard.is_key_released(glfw::Key::Q) {
             println!("[Update Camera System] Updating camera viewport");
             camera.viewport = (0.5f32, 0f32, 1f32, 1f32);
         }
 
-        if keyboard.is_key_released(glfw::Key::Q) {
+        if keyboard.is_key_released(glfw::Key::E) {
             println!("[Update Camera System] Reset camera viewport");
             camera.viewport = (0f32, 0f32, 1f32, 1f32);
+        }
+
+        if keyboard.is_key_released(glfw::Key::I) {
+            camera.ppu = 200f32;
+        }
+        if keyboard.is_key_released(glfw::Key::K) {
+            camera.ppu = 100f32;
+        }
+    }
+}
+
+pub fn move_camera_2d(
+    time: Res<Time>,
+    inputs: Res<Inputs>,
+    mut query: Query<(&mut Transform, &mut Camera)>,
+) {
+    for (mut transform, _camera) in query.iter_mut() {
+        let keyboard = inputs.keyboard.lock().unwrap();
+
+        const SPEED: f32 = 18f32;
+        if keyboard.is_key_pressed(glfw::Key::W) {
+            transform.position.y += SPEED * time.delta_time;
+        }
+        if keyboard.is_key_pressed(glfw::Key::S) {
+            transform.position.y -= SPEED * time.delta_time;
+        }
+        if keyboard.is_key_pressed(glfw::Key::D) {
+            transform.position.x += SPEED * time.delta_time;
+        }
+        if keyboard.is_key_pressed(glfw::Key::A) {
+            transform.position.x -= SPEED * time.delta_time;
+        }
+        if keyboard.is_key_pressed(glfw::Key::C) {
+            transform.position.z -= SPEED * time.delta_time;
+        }
+        if keyboard.is_key_pressed(glfw::Key::V) {
+            transform.position.z += SPEED * time.delta_time;
+        }
+
+        if keyboard.is_key_released(glfw::Key::C) || keyboard.is_key_released(glfw::Key::V) {
+            println!("[Update Camera System] Moving Camera ends {:?}", transform);
         }
     }
 }
 
 pub fn update_system(time: Res<Time>, mut query: Query<(Entity, &mut Transform), Without<Camera>>) {
     for (_entity, mut transform) in query.iter_mut() {
+        continue;
         let x: f32 = transform.position.x + (time.time.cos() as f32 * time.delta_time);
 
         transform.position = Position {
@@ -69,27 +110,32 @@ pub fn late_update_system(
     for (mut sprite, mut checker) in query.iter_mut() {
         let color_white = vec4(1f32, 1f32, 1f32, 1f32);
         let color_other = vec4(0.1f32, 1f32, 0.8f32, 1f32);
+        let colors = ["Dark", "Green", "Orange", "Purple", "Red"];
 
         checker.accumulated_time += _time.delta_time;
         checker.color_timer += _time.delta_time;
 
         if checker.accumulated_time >= 2f32 {
-            let number = (_time.frames % 9u64).clamp(1, 9);
-            sprite.texture = Option::from(format!("Dark/texture_0{}.png", number));
+            let rng_idx = abs(random::<i32>() % 9);
+            let rng_folder = abs(random::<i32>() % 5);
+
+            let number = (rng_idx + 1).clamp(1, 9);
+            let folder = colors[rng_folder as usize];
+            sprite.texture = Option::from(format!("{}/texture_0{}.png", folder, number));
             checker.accumulated_time = 0f32;
         }
 
-        if checker.color_timer >= 2f32 {
-            let color = checker
-                .flip_color
-                .then(|| color_other)
-                .unwrap_or(color_white);
-
-            sprite.material.get_or_insert_with(Material::new).color = color;
-
-            checker.flip_color = !checker.flip_color;
-            checker.color_timer = 0f32;
-        }
+        // if checker.color_timer >= 2f32 {
+        //     let color = checker
+        //         .flip_color
+        //         .then(|| color_other)
+        //         .unwrap_or(color_white);
+        //
+        //     sprite.material.get_or_insert_with(Material::new).color = color;
+        //
+        //     checker.flip_color = !checker.flip_color;
+        //     checker.color_timer = 0f32;
+        // }
     }
 }
 
@@ -126,20 +172,35 @@ fn main() {
             .get_mut(EcsUpdateSchedule)
             .unwrap()
             .add_systems(update_camera);
+        schedules
+            .get_mut(EcsUpdateSchedule)
+            .unwrap()
+            .add_systems(move_camera_2d);
 
-        let _entity = world.spawn((
-            Transform {
-                position: Position::default(),
-                rotation: Rotation::default(),
-                scale: Scale { x: 0.5, y: 0.5, z: 0.5 } ,
-            },
-            SpriteRenderer2D::from(String::from("Red/texture_08.png"), false),
-            ChangeChecker {
-                accumulated_time: 0f32,
-                color_timer: 0f32,
-                flip_color: false,
-            },
-        ));
+        let pos: f32 = 2f32 * 1.5f32;
+        for i in 0..100 {
+            let _entity = world.spawn((
+                Transform {
+                    position: Position {
+                        x: (i as f32) * pos,
+                        y: 0.0,
+                        z: 0.0,
+                    },
+                    rotation: Rotation::default(),
+                    scale: Scale {
+                        x: 1.2,
+                        y: 1.2,
+                        z: 1.2,
+                    },
+                },
+                SpriteRenderer2D::from(String::from("Red/texture_08.png"), false),
+                ChangeChecker {
+                    accumulated_time: 0f32,
+                    color_timer: 0f32,
+                    flip_color: false,
+                },
+            ));
+        }
     }
 
     match app.run() {
