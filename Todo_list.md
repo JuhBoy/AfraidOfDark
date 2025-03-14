@@ -1,58 +1,76 @@
-// TODO: 
-// I'm currently working on transfering changes done in the ECS part to the underlying system of rendering (here)
-// so the update callback must be kill and sent to the opengl side (as it use glViewport() function to update the viewport size)
+# Rendering
 
-files:
-- opengl.rs
-- world.rs (flush_camera_changes)
+## Completed
 
-[Rendering]
-[X] - Update the viewport size in the opengl side
-[X] - Pass viewport change from ECS to the rendering system
-[x] - Add Keyboard input system to handle keyboard events in ECS
-				[x] Writting update_state Keybaord base input system (require to update state from window glfw) 
-[x] - Test view port changes with a simple game system that respond to a input keys
-[o] - Create frame buffer target per camera with ECS binding
-			[x] Actually neededing to rework the alloc_buffer form gfx device opengl to allow quad with no indices for rendering the screen shader with 2D vertex
-			[x] Refacto FrameBuffer object to make it more clear what is used as screen sampling (probably needs to extract the shaders and buffers object)
-[x] - Update Camera changes from ECS to the rendering system via shader_api (uniforms)
-[x] - Update Transform of SpriteRenderer2D from ECS to the rendering system via shader_api (uniforms)
-	[x] Create TRS matrix for entities (+ pass transform data from ECS to rendering)
-	[x] Store camera information to GFX device (Size, pixel per unit, etc..)
-	[x] Adding clearing color to the camera data 
-	[x] Create orthographic projection from camera data 
-	[x] Adds MVP matrix to shaders
-	[x] Apply MPV matrix from CPU side
-[x] - Adds orthographic projection to the shader_api
-[x] Implements caching system (super naive) for textures
-	[x] adds post frame rendering texture clears
-	[x] adds frame storage state with reference counting for textures
-[x] Add String to Gpu Handle cache storage to prevent duplicates allocation
-[ ] Implements background color clear using camera settings
-[ ] Implements camera Frustrum culling
-[ ] Adds preserve aspect ratio option for Sprite2D (ECS + Renderer + Shader)
-[ ] Adds sorting layer for Sprite2D (ECS + Renderer)
-[ ] Small Optims => (shader sharing, PriorityQueue sorting)
-	[ ] Use Pixel buffer object to update texture when size match
-	[ ] create storage hash function to prevent cloning String when dealing with texture
-[ ] File System
-	[ ] Add threaded async loading for texture
-	[ ] Implements async Queue for RendererStorage
-	[ ] Implements async Rendering for OpenGL layer
-[ ] Rendering Pipeline (TBD: probably deferred)
-	[ ] Shaders
-		[ ] Luminance, Diffuse, Specular, Texture Mapping
-		[ ] Small compiler with header inclusion
-	[ ] Light sources
-		[ ] Point Light (ECS + Renderer)
-		[ ] Spot Light (ECS + Renderer)
-		[ ] Global Light (ECS + Renderer)
-	[ ] Shadow map
-	[ ] Stencil
-[ ] ... Animators, Sprite Atlas, Maps & Scenes serialization
+### Viewport & ECS
+- [X] Update the viewport size in the OpenGL side
+- [X] Pass viewport change from ECS to the rendering system
 
-[File System and Profiling]
-[ ] Implement Tracy crate profiler
-	- https://github.com/wolfpld/tracy?tab=readme-ov-file 
-[ ] Adds memory allocator in order to control memory size (CPU side)
-[ ] Implement memory & CPU profiling events (Rendering, ECS)
+### Input System
+- [X] Add Keyboard input system to handle keyboard events in ECS
+	- [X] Implement update_state Keyboard base input system (requires updating state from window (GLFW))
+
+### Testing
+- [X] Test viewport changes with a simple game system that responds to input keys
+
+### Frame Buffer & GFX
+- [O] Create frame buffer target per camera with ECS binding
+	- [X] Rework the `alloc_buffer` from gfx device OpenGL to allow a quad with no indices for rendering the screen shader with 2D vertices
+	- [X] Refactor FrameBuffer object to clearly distinguish what is used as screen sampling (consider extracting shaders and buffer objects)
+
+### Camera & Transform
+- [X] Update Camera changes from ECS to the rendering system via shader API (uniforms)
+- [X] Update Transform of SpriteRenderer2D from ECS to the rendering system via shader API (uniforms)
+	- [X] Create TRS matrix for entities (and pass transform data from ECS to rendering)
+	- [X] Store camera information to GFX device (size, pixels per unit, etc.)
+	- [X] Add clearing color to the camera data
+	- [X] Create orthographic projection from camera data
+	- [X] Add MVP matrix to shaders and apply it from the CPU side
+
+### Shader API Enhancements
+- [X] Add orthographic projection support to the shader API
+
+### Texture & Caching
+- [X] Implement a basic caching system for textures
+	- [X] Add post-frame rendering texture clears
+	- [X] Add frame storage state with reference counting for textures
+- [X] Add string-to-GPU handle cache storage to prevent duplicate allocations
+
+## In Progress / Planned
+
+- [ ] Implement background color clear using camera settings
+- [ ] Implement camera frustum culling
+- [ ] Add preserve aspect ratio option for Sprite2D (integrate changes in ECS, Renderer, and Shader)
+- [ ] Add sorting layer for Sprite2D (integrate changes in ECS and Renderer)
+- [ ] **Small Optimizations**
+	- [ ] Use Pixel Buffer Object to update textures when sizes match
+	- [ ] Create storage hash function to prevent cloning strings when handling textures
+
+## Future Enhancements
+
+### Rendering Pipeline (Deferred, TBD)
+- **Shaders**
+	- [ ] Support for Luminance, Diffuse, Specular, and Texture Mapping
+	- [ ] Develop a small compiler with header inclusion
+- **Light Sources**
+	- [ ] Implement Point Light (ECS + Renderer)
+	- [ ] Implement Spot Light (ECS + Renderer)
+	- [ ] Implement Global Light (ECS + Renderer)
+- [ ] Integrate shadow mapping
+- [ ] Integrate stencil techniques
+
+- [ ] Other features: Animators, Sprite Atlas, Maps & Scenes serialization
+
+# File System and Profiling
+
+## Future Enhancements
+
+### Profiling & Memory Management
+- [ ] Integrate Tracy crate profiler ([Tracy GitHub](https://github.com/wolfpld/tracy?tab=readme-ov-file))
+- [ ] Add a custom memory allocator to manage CPU-side memory usage
+- [ ] Implement memory & CPU profiling events for Rendering and ECS
+
+### Async File System Operations
+- [ ] Implement threaded asynchronous loading for textures
+- [ ] Implement asynchronous queue for RendererStorage
+- [ ] Implement asynchronous rendering for the OpenGL layer
