@@ -29,7 +29,6 @@ use glfw::ffi::glfwWindowHint;
 use glfw::{ffi::glfwInit, Action, Context, Glfw, GlfwReceiver, Key, PWindow, WindowEvent};
 use glm::{Matrix4, Vector4};
 use std::cell::{Ref, RefMut};
-use std::ops::{Deref, DerefMut};
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -43,7 +42,8 @@ pub struct Renderer {
     keyboard_inputs: Arc<Mutex<Keyboard>>,
     rendering_state: RenderState,
     rendering_store: RendererStorage,
-    viewport_rect: RefCell<glm::Vector4<f32>>, // x, y, width, height (Range is [0; 1])
+    viewport_normalized: RefCell<Vector4<f32>>, // x, y, width, height (Range is [0; 1])
+    window_rect: Rect<u32>,
     main_camera: RenderingCamera,
     updates_state: RenderingUpdateState,
 
@@ -93,11 +93,17 @@ impl Renderer {
             keyboard_inputs: Arc::from(Mutex::from(Keyboard::new())),
             rendering_state: RenderState::Closed,
             rendering_store: RendererStorage::new(),
-            viewport_rect: RefCell::new(glm::vec4(0.0, 0.0, 1.0, 1.0)),
+            viewport_normalized: RefCell::new(glm::vec4(0.0, 0.0, 1.0, 1.0)),
+            window_rect: Rect {
+                x: 0,
+                y: 0,
+                width: settings.width,
+                height: settings.height,
+            },
             main_camera: RenderingCamera {
                 near: 0.1,
                 far: 50.0,
-                ppu: 100f32,
+                ppu: 380u32,
                 background_color: ARGB8Color::black(),
                 transform: Transform::default(),
             },
@@ -131,24 +137,15 @@ impl Renderer {
 
         let (scaled_width, scaled_height) = self.window.get_framebuffer_size();
 
-        let vp_borrow = self.viewport_rect.borrow();
-        let final_x: f32 = scaled_width as f32 * vp_borrow.x;
-        let final_y: f32 = scaled_height as f32 * vp_borrow.y;
-        let final_w: f32 = scaled_width as f32 * vp_borrow.z;
-        let final_h: f32 = scaled_height as f32 * vp_borrow.w;
-        let rect: Rect<u32> = Rect {
-            x: final_x as u32,
-            y: final_y as u32,
-            width: final_w as u32,
-            height: final_h as u32,
-        };
+        // Update viewport pixels just in case it would have changed
+        self.window_rect.width = scaled_width as u32;
+        self.window_rect.height = scaled_height as u32;
 
         let device: &Box<GfxDevice> = self
             .gfx_device
             .as_ref()
             .expect("Graphic device not allocated");
-        device.set_update_viewport_callback(&mut self.window, self.viewport_rect.clone());
-        device.update_viewport(rect);
+        device.set_update_viewport_callback(&mut self.window, self.viewport_normalized.clone());
 
         // Alloc the main framebuffer for post process, it will blit to the screen buffer
         let frame_buffer: FrameBuffer = device.alloc_framebuffer(scaled_width, scaled_height);
@@ -281,7 +278,7 @@ impl Renderer {
         // compute the TRS, View and Proj matrix and forward them to the GPU device
         let trs_matrix: Matrix4<f32> = compute_trs(&render_req.transform);
         let view_matrix: Matrix4<f32> = compute_view_matrix(&self.main_camera.transform);
-        let proj_matrix: Matrix4<f32> = compute_projection(&self.main_camera);
+        let proj_matrix: Matrix4<f32> = compute_projection(&self.main_camera, &self.window_rect);
 
         gfx.shader_api
             .set_attribute_mat4(shader_module.self_handle, "TRS", &trs_matrix);
@@ -401,9 +398,9 @@ impl Renderer {
         self.rendering_store.remove_render_command(handle)
     }
 
-    pub fn update_viewport(&mut self, x: f32, y: f32, width: f32, height: f32) {
+    pub fn update_normalized_viewport(&mut self, x: f32, y: f32, width: f32, height: f32) {
         // Update the viewport on CPU side for now
-        let mut vp_borrow = self.viewport_rect.borrow_mut();
+        let mut vp_borrow = self.viewport_normalized.borrow_mut();
 
         vp_borrow.x = x;
         vp_borrow.y = y;
@@ -430,7 +427,7 @@ impl Renderer {
             .expect("Graphic device not allocated");
 
         // Updates to default viewport before drawing the scene into the main buffer texture
-        let default_viewport: glm::Vector4<f32> = Vector4 {
+        let default_viewport: Vector4<f32> = Vector4 {
             x: 0f32,
             y: 0f32,
             z: 1f32,
@@ -461,7 +458,7 @@ impl Renderer {
                     gfx_device.shader_api.set_attribute_mat4(
                         command.shader_module.self_handle,
                         "PROJ",
-                        &compute_projection(&self.main_camera),
+                        &compute_projection(&self.main_camera, &self.window_rect),
                     );
                 }
 
@@ -473,7 +470,7 @@ impl Renderer {
         gfx_device.use_framebuffer(None);
         gfx_device.clear();
 
-        let normalized_screen_viewport = self.viewport_rect.clone().into_inner();
+        let normalized_screen_viewport = self.viewport_normalized.clone().into_inner();
         let pixel_screen_viewport: Rect<u32> =
             compute_gfx_viewport_rect(&normalized_screen_viewport, &self.window);
         gfx_device.update_viewport(pixel_screen_viewport);

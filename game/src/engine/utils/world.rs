@@ -33,7 +33,7 @@ impl World {
                         fov: 80.0,
                         near: 0.1,
                         far: 50.0,
-                        ppu: 100f32,
+                        ppu: 380u32,
                         viewport: (0.0, 0.0, 1.0, 1.0),
                         mode: Projection::Orthographic,
                         output_target: Option::None,
@@ -176,7 +176,7 @@ impl World {
         {
             let camera_component = camera.get::<Camera>().unwrap();
             let (x, y, w, h) = camera_component.viewport.clone();
-            renderer.update_viewport(x, y, w, h);
+            renderer.update_normalized_viewport(x, y, w, h);
         }
 
         let resources = world.get_resource::<RenderingResourcesContainer>().unwrap();

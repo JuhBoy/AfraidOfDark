@@ -14,22 +14,22 @@ use super::{
 #[allow(dead_code)]
 const SQUARE_NO_INDICES: [f32; 18] = [
     // FT
-    -1.0, -1.0, 0.0, // left
-    1.0, -1.0, 0.0, // right
-    -1.0, 1.0, 0.0, // top
+    -0.5, -0.5, 0.0, // left
+    0.5, -0.5, 0.0, // right
+    -0.5, 1.0, 0.0, // top
     // ST
-    -1.0, 1.0, 0.0, // top
-    1.0, -1.0, 0.0, // right
-    1.0, 1.0, 0.0, // bottom
+    -0.5, 0.5, 0.0, // top
+    0.5, -0.5, 0.0, // right
+    0.5, 0.5, 0.0, // bottom
 ];
 
 #[allow(dead_code)]
 const SQUARE_WITH_UVS: [f32; 20] = [
-    // positions                // texture coords
-    1.0f32, 1.0f32, 0.0f32, 1.0f32, 1.0f32, // top left
-    1.0f32, -1.0f32, 0.0f32, 1.0f32, 0.0f32, // top right
-    -1.0f32, -1.0f32, 0.0f32, 0.0f32, 0.0f32, // bottom right
-    -1.0f32, 1.0f32, 0.0f32, 0.0f32, 1.0f32, // bottom left
+    // positions            // texture coords
+    0.5f32, 0.5f32, 0.0f32, 1.0f32, 1.0f32, // top right
+    0.5f32, -0.5f32, 0.0f32, 1.0f32, 0.0f32, // bottom right
+    -0.5f32, -0.5f32, 0.0f32, 0.0f32, 0.0f32, // bottom left
+    -0.5f32, 0.5f32, 0.0f32, 0.0f32, 1.0f32, // top left
 ];
 
 const SQUARE_2D_WITH_UVS: [f32; 24] = [

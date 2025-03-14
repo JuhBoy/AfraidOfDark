@@ -141,7 +141,7 @@ impl GfxDevice {
     pub fn alloc_texture(&self, sp_hdl: u32, texture: &Texture) -> u32 {
         self.instance.alloc_texture(sp_hdl, texture)
     }
-    
+
     pub fn release_texture(&self, tex_id: u32) {
         self.instance.release_texture(tex_id);
     }
@@ -202,5 +202,4 @@ impl GfxDevice {
         self.instance.clear_color();
         self.instance.clear_buffers();
     }
-
 }

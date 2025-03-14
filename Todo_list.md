@@ -14,7 +14,7 @@
 - [X] Test viewport changes with a simple game system that responds to input keys
 
 ### Frame Buffer & GFX
-- [O] Create frame buffer target per camera with ECS binding
+- [x] Create frame buffer target per camera with ECS binding
 	- [X] Rework the `alloc_buffer` from gfx device OpenGL to allow a quad with no indices for rendering the screen shader with 2D vertices
 	- [X] Refactor FrameBuffer object to clearly distinguish what is used as screen sampling (consider extracting shaders and buffer objects)
 

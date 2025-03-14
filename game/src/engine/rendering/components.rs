@@ -20,7 +20,7 @@ pub struct FrameBuffer {
 pub struct RenderingCamera {
     pub near: f32,
     pub far: f32,
-    pub ppu: f32,
+    pub ppu: u32,
     pub background_color: ARGB8Color,
 
     pub transform: Transform,

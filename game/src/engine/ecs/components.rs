@@ -20,7 +20,7 @@ pub struct Camera {
     pub fov: f32,
     pub near: f32,
     pub far: f32,
-    pub ppu: f32,
+    pub ppu: u32,
 
     pub viewport: (f32, f32, f32, f32), // NDC
     pub mode: Projection,

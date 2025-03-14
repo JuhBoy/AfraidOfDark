@@ -1,5 +1,5 @@
 use crate::engine::ecs::components::{Position, Scale, Transform};
-use crate::engine::rendering::components::RenderingCamera;
+use crate::engine::rendering::components::{Rect, RenderingCamera};
 use glm::{vec3, BaseFloat, Matrix4};
 
 pub fn identity_mat4() -> Matrix4<f32> {
@@ -75,9 +75,9 @@ pub fn compute_view_matrix(transform: &Transform) -> Matrix4<f32> {
     view_matrix
 }
 
-pub fn compute_projection(camera: &RenderingCamera) -> Matrix4<f32> {
-    let width = 800f32 / camera.ppu;
-    let height = 600f32 / camera.ppu;
+pub fn compute_projection(camera: &RenderingCamera, window_rect: &Rect<u32>) -> Matrix4<f32> {
+    let width = window_rect.width as f32 / camera.ppu as f32;
+    let height = window_rect.height as f32 / camera.ppu as f32;
     let h_w = width * 0.5f32;
     let h_h = height * 0.5f32;
     let right = h_w;

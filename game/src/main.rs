@@ -44,10 +44,10 @@ pub fn update_camera(inputs: Res<Inputs>, mut query: Query<(Entity, &mut Camera)
         }
 
         if keyboard.is_key_released(glfw::Key::I) {
-            camera.ppu = 200f32;
+            camera.ppu = 380u32;
         }
         if keyboard.is_key_released(glfw::Key::K) {
-            camera.ppu = 100f32;
+            camera.ppu = 100u32;
         }
     }
 }
@@ -142,8 +142,8 @@ pub fn late_update_system(
 fn main() {
     let app_settings = ApplicationSettings {
         window: WindowSettings {
-            width: 800,
-            height: 600,
+            width: 1920,
+            height: 1080,
             mode: WindowMode::Windowed,
         },
         app_name: String::from("Afraid of the Dark"),
@@ -177,7 +177,7 @@ fn main() {
             .unwrap()
             .add_systems(move_camera_2d);
 
-        let pos: f32 = 2f32 * 1.5f32;
+        let pos: f32 = 1.2f32;
         for i in 0..100 {
             let _entity = world.spawn((
                 Transform {
@@ -186,11 +186,15 @@ fn main() {
                         y: 0.0,
                         z: 0.0,
                     },
-                    rotation: Rotation::default(),
+                    rotation: Rotation {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    },
                     scale: Scale {
-                        x: 1.2,
-                        y: 1.2,
-                        z: 1.2,
+                        x: 1.0,
+                        y: 1.0,
+                        z: 1.0,
                     },
                 },
                 SpriteRenderer2D::from(String::from("Red/texture_08.png"), false),
