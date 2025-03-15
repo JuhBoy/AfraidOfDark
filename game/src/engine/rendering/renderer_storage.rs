@@ -90,13 +90,12 @@ impl RendererStorage {
 
     pub fn store_command(&mut self, cmd: RenderCommand, push_to_frame: bool) -> RenderCmdHd {
         let handle = cmd.handle;
-        let rc_cmd: RefCell<RenderCommand> = RefCell::new(cmd);
+        let cmd_ptr: Rc<RefCell<RenderCommand>> = Rc::new(RefCell::new(cmd));
 
-        self.render_command_storage
-            .insert(handle, Rc::new(rc_cmd.clone()));
+        self.render_command_storage.insert(handle, cmd_ptr.clone());
 
         if push_to_frame {
-            self.renderer_queue.push_back(Rc::new(rc_cmd));
+            self.renderer_queue.push_back(cmd_ptr);
         }
 
         handle

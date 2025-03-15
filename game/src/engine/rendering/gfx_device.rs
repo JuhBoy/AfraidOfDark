@@ -3,10 +3,10 @@ use super::{
     renderer::RenderCmdHd,
     shaders::{Material, Texture},
 };
+use crate::engine::rendering::components::ARGB8Color;
 use crate::engine::rendering::shaders::ShaderType;
 use glm::Matrix4;
 use std::{cell::RefCell, rc::Rc};
-use crate::engine::rendering::components::ARGB8Color;
 
 pub struct GfxDevice {
     instance: Rc<dyn GfxApiDevice>,
