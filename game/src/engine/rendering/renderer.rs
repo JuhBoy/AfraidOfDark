@@ -492,7 +492,6 @@ impl Renderer {
         self.updates_state.reset();
 
         self.window.swap_buffers();
-        self.poll_events();
 
         self.rendering_state = RenderState::Closed;
     }

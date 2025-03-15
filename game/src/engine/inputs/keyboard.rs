@@ -7,7 +7,7 @@ pub struct Keyboard {
 }
 
 fn is_release(state: i32) -> bool {
-    state & (1 << 1) != 0
+    (state & (1 << 1)) != 0
 }
 
 fn is_pressed(state: i32) -> bool {
