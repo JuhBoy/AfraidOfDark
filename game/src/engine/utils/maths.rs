@@ -1,6 +1,7 @@
 use crate::engine::ecs::components::{Position, Scale, Transform};
-use crate::engine::rendering::components::{Rect, RenderingCamera};
+use crate::engine::rendering::components::RenderingCamera;
 use glm::{vec3, BaseFloat, Matrix4};
+use std::ops::{Add, Div, Mul, Sub};
 
 pub fn identity_mat4() -> Matrix4<f32> {
     let identity: Matrix4<f32> = glm::Matrix4::new(
@@ -97,4 +98,57 @@ pub fn compute_projection(camera: &RenderingCamera, window_rect: &Rect<u32>) -> 
     orthographic_projection.c3.z = -(far + near) / (far - near);
 
     orthographic_projection
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Rect<T> {
+    pub x: T,
+    pub y: T,
+    pub width: T,
+    pub height: T,
+}
+
+impl<T> Rect<T>
+where
+    T: Add<Output = T> + Sub<Output = T> + Mul<Output = T> + Div<Output = T> + Copy + From<f32>,
+{
+    pub fn from(transform: &Transform) -> Self {
+        Self {
+            x: T::from(transform.position.x),
+            y: T::from(transform.position.y),
+            width: T::from(transform.scale.x),
+            height: T::from(transform.scale.y),
+        }
+    }
+
+    pub fn min_x(&self) -> T {
+        let half_width = self.width * T::from(0.5f32);
+        let min_x = (self.x - half_width);
+
+        min_x
+    }
+
+    pub fn max_x(&self) -> T {
+        let half_width = self.width * T::from(0.5f32);
+        let max_x = (self.x + half_width);
+        max_x
+    }
+
+    pub fn min_y(&self) -> T {
+        let half_height = self.height * T::from(0.5f32);
+        let min_y = (self.y - half_height);
+        min_y
+    }
+
+    pub fn max_y(&self) -> T {
+        let half_height = self.height * T::from(0.5f32);
+        let max_y = (self.y + half_height);
+        max_y
+    }
+}
+
+pub fn intersects(base_rect: Rect<f32>, rect: Rect<f32>) -> bool {
+    let x_axis = rect.min_x() <= base_rect.max_x() && rect.max_x() >= base_rect.min_x();
+    let y_axis = rect.min_y() <= base_rect.max_y() && rect.max_y() >= base_rect.min_y();
+    x_axis && y_axis
 }

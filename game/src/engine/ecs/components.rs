@@ -2,11 +2,11 @@ use std::sync::{Arc, Mutex};
 
 use bevy_ecs::{component::Component, entity::Entity, system::Resource};
 
+use crate::engine::rendering::components::ARGB8Color;
 use crate::engine::{
     inputs::keyboard::Keyboard,
     rendering::{renderer::RenderCmdHd, shaders::Material},
 };
-use crate::engine::rendering::components::ARGB8Color;
 
 #[derive(Debug, Default)]
 pub enum Projection {
@@ -68,6 +68,9 @@ pub struct RendererHandleComponent {
     pub handle: RenderCmdHd,
 }
 
+#[derive(Component, Debug, Default, Clone, Copy)]
+pub struct NoCulling;
+
 #[derive(Resource, Debug)]
 pub struct Inputs {
     pub keyboard: Arc<Mutex<Keyboard>>,
@@ -86,6 +89,33 @@ impl Scale {
             x: 1.0f32,
             y: 1.0f32,
             z: 1.0f32,
+        }
+    }
+}
+
+impl Camera {
+    pub fn default() -> Self {
+        Camera {
+            fov: 80.0,
+            near: 0.1,
+            far: 50.0,
+            ppu: 380u32,
+            viewport: (0.0, 0.0, 1.0, 1.0),
+            mode: Projection::Orthographic,
+            output_target: Option::None,
+            background_color: Option::None,
+        }
+    }
+
+    pub fn default_transform() -> Transform {
+        Transform {
+            position: Position {
+                x: 0.0,
+                y: 0.0,
+                z: -1.0,
+            },
+            rotation: Default::default(),
+            scale: Default::default(),
         }
     }
 }

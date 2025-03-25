@@ -52,19 +52,12 @@ pub struct RenderUpdate {
     pub transform: Option<Transform>,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RenderState {
     Opened,
     Closed,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct Rect<T> {
-    pub x: T,
-    pub y: T,
-    pub width: T,
-    pub height: T,
-}
 
 #[derive(Clone, Copy, Debug)]
 pub struct ARGB8Color {

@@ -4,7 +4,7 @@ use bevy_ecs::schedule::Schedules;
 use bevy_ecs::system::{Query, Res};
 use engine::ecs::components::{Camera, Inputs, Rotation, Scale, SpriteRenderer2D, Transform};
 use engine::ecs::config::{EcsFixedUpdateSchedule, EcsLateUpdateSchedule, EcsUpdateSchedule};
-use engine::ecs::time::Time;
+use engine::ecs::resources::Time;
 use engine::lib::runtime::App;
 
 use crate::engine::ecs::components::Position;
@@ -12,6 +12,7 @@ use crate::engine::rendering::components::ARGB8Color;
 use engine::utils::app_settings::{ApplicationSettings, WindowMode, WindowSettings};
 use glm::{abs, vec4};
 use rand::random;
+use crate::engine::ecs::resources::CameraCullingState;
 
 pub mod engine;
 
@@ -151,11 +152,11 @@ fn main() {
         target_frame_rate: 120f32,
     };
 
-    let mut app = App::with_appsettings(app_settings);
-
+    let mut app = App::with_settings(app_settings);
     app.warm();
 
     if let Some(world) = app.world.as_mut() {
+        let mut world = world.borrow_mut();
         let mut schedules = world.resource_mut::<Schedules>();
         schedules
             .get_mut(EcsUpdateSchedule)
@@ -206,9 +207,12 @@ fn main() {
                 },
             ));
         }
-
-        let cam = world.get_main_camera();
-        let mut camera_entity = world.entity_mut(cam);
+        
+        let culling_state = {
+            let cam = world.get_resource_mut::<CameraCullingState>().unwrap();
+            cam.camera_entity.unwrap()
+        };
+        let mut camera_entity = world.entity_mut(culling_state);
         let mut camera = camera_entity.get_mut::<Camera>().unwrap();
 
         camera.background_color = Option::from(ARGB8Color {

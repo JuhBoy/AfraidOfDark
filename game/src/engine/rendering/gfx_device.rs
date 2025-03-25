@@ -1,5 +1,5 @@
 use super::{
-    components::{BufferSettings, FrameBuffer, Rect},
+    components::{BufferSettings, FrameBuffer},
     renderer::RenderCmdHd,
     shaders::{Material, Texture},
 };
@@ -7,10 +7,11 @@ use crate::engine::rendering::components::ARGB8Color;
 use crate::engine::rendering::shaders::ShaderType;
 use glm::Matrix4;
 use std::{cell::RefCell, rc::Rc};
+use crate::engine::utils::maths::Rect;
 
 pub struct GfxDevice {
     instance: Rc<dyn GfxApiDevice>,
-    cmd_ids: u128,
+    cmd_ids: RenderCmdHd,
 
     pub shader_api: Rc<dyn GfxApiShader>,
 }

@@ -1,20 +1,23 @@
 pub mod runtime {
     use bevy_ecs::schedule::Schedule;
 
+    use crate::engine::ecs::resources::CameraCullingState;
     use crate::engine::{
         ecs::{
             components::{CameraBinding, Inputs},
             config::{EcsFixedUpdateSchedule, EcsLateUpdateSchedule, EcsUpdateSchedule},
+            resources::{RenderingFrameData, Time},
             systems::{
                 add_camera_2d_system, add_sprite_2d_system, changed_sprite_2d_system,
                 update_camera_settings_system, update_camera_transform_system,
             },
-            time::{RenderingResourcesContainer, Time},
         },
         logging::{consts, logs::Logger, logs_traits::LoggerBase},
         rendering::renderer::Renderer,
-        utils::{app_settings::ApplicationSettings, world::World},
+        utils::{app_settings::ApplicationSettings, rendering_bridge::RenderingBridge},
     };
+    use bevy_ecs::world::World;
+    use std::cell::{RefCell, RefMut};
     use std::{rc::Rc, time::Duration};
 
     pub struct App {
@@ -22,11 +25,12 @@ pub mod runtime {
         logs: Rc<dyn LoggerBase>,
         app_settings: ApplicationSettings,
 
-        // Base systems
+        // Internal systems
         renderer: Option<Renderer>,
 
         // Exposed system
-        pub world: Option<Box<World>>,
+        pub rendering_bridge: Option<RenderingBridge>,
+        pub world: Option<Rc<RefCell<World>>>,
     }
 
     impl App {
@@ -38,11 +42,12 @@ pub mod runtime {
                 }),
                 app_settings: ApplicationSettings::default(),
                 renderer: Option::None,
+                rendering_bridge: Option::None,
                 world: Option::None,
             }
         }
 
-        pub fn with_appsettings(settings: ApplicationSettings) -> Self {
+        pub fn with_settings(settings: ApplicationSettings) -> Self {
             Self {
                 _name: settings.app_name.clone(),
                 logs: Rc::new(Logger {
@@ -50,94 +55,102 @@ pub mod runtime {
                 }),
                 app_settings: settings,
                 renderer: Option::None,
+                rendering_bridge: None,
                 world: Option::None,
             }
         }
 
         pub fn warm(&mut self) -> &mut Self {
-            let s: &ApplicationSettings = &self.app_settings;
-
             // Rendering
-            let mut renderer: Renderer = Renderer::init_with_glfw(&s.window, self.logs.clone());
+            let mut renderer: Renderer =
+                Renderer::init_with_glfw(&self.app_settings.window, self.logs.clone());
             renderer.warm();
             self.renderer = Option::from(renderer);
 
-            // ECS -- Schedulers & world
-            self.world = Option::from(Box::new(World::new()));
-            let world = self.world.as_mut().unwrap();
+            // ECS -- Bridge & world Init
+            self.world = Option::from(Rc::new(RefCell::new(World::new())));
+            self.rendering_bridge =
+                Option::from(RenderingBridge::new(self.world.as_ref().unwrap().clone()));
 
-            let update_schedule = Schedule::new(EcsUpdateSchedule);
-            let fixed_update_schedule = Schedule::new(EcsFixedUpdateSchedule);
-            let mut late_update_schedule = Schedule::new(EcsLateUpdateSchedule);
+            // Set up the ECS world & schedulers
+            {
+                let mut world = self.world.as_mut().unwrap().borrow_mut();
 
-            late_update_schedule.add_systems(changed_sprite_2d_system);
-            late_update_schedule.add_systems(add_sprite_2d_system);
-            late_update_schedule.add_systems(add_camera_2d_system);
-            late_update_schedule.add_systems(update_camera_settings_system);
-            late_update_schedule.add_systems(update_camera_transform_system);
+                let update_schedule = Schedule::new(EcsUpdateSchedule);
+                let fixed_update_schedule = Schedule::new(EcsFixedUpdateSchedule);
+                let mut late_update_schedule = Schedule::new(EcsLateUpdateSchedule);
 
-            world.add_schedule(update_schedule);
-            world.add_schedule(fixed_update_schedule);
-            world.add_schedule(late_update_schedule);
+                late_update_schedule.add_systems(changed_sprite_2d_system);
+                late_update_schedule.add_systems(add_sprite_2d_system);
+                late_update_schedule.add_systems(add_camera_2d_system);
+                late_update_schedule.add_systems(update_camera_settings_system);
+                late_update_schedule.add_systems(update_camera_transform_system);
 
-            // Resources
-            world.insert_resource::<Time>(Time {
-                frames: 0u64,
-                time: 0f64,
-                delta_time: 0.02f32,
-                fixed_delta_time: 0.02f32,
-            });
+                world.add_schedule(update_schedule);
+                world.add_schedule(fixed_update_schedule);
+                world.add_schedule(late_update_schedule);
 
-            world.insert_resource::<Inputs>(Inputs {
-                keyboard: self.renderer.as_ref().unwrap().get_keyboard_inputs(),
-            });
+                // Resources
+                world.insert_resource::<Time>(Time {
+                    frames: 0u64,
+                    time: 0f64,
+                    delta_time: 0.02f32,
+                    fixed_delta_time: 0.02f32,
+                });
 
-            let main_entity_camera = world.get_main_camera();
-            world.insert_resource::<CameraBinding>(CameraBinding {
-                cameras: vec![(main_entity_camera, 0u32)],
-            });
+                world.insert_resource::<Inputs>(Inputs {
+                    keyboard: self.renderer.as_ref().unwrap().get_keyboard_inputs(),
+                });
 
-            world.insert_resource::<RenderingResourcesContainer>(RenderingResourcesContainer {
-                frame: 0f64,
-                new_2d_render: Vec::new(),
-                updated_2d_render: Vec::with_capacity(200),
-                deleted_2d_render: Vec::new(),
-                updated_camera_settings: Vec::new(),
-                updated_camera_transform: Vec::new(),
-            });
+                let main_entity_camera = { RenderingBridge::build_camera(&mut *world) };
+                world.insert_resource::<CameraBinding>(CameraBinding {
+                    cameras: vec![(main_entity_camera, 0u32)],
+                });
+                
+                let renderer = self.renderer.as_ref().unwrap();
+                let camera_viewport = renderer.get_world_camera_viewport();
+
+                world.insert_resource::<CameraCullingState>(CameraCullingState {
+                    last_check_frame: 0.0,
+                    camera_entity: Option::from(main_entity_camera),
+                    camera_world_viewport: camera_viewport,
+                    force_full_pass: false,
+                    entities: Vec::with_capacity(1024),
+                });
+
+                world.insert_resource::<RenderingFrameData>(RenderingFrameData {
+                    frame: 0f64,
+                    new_2d_render: Vec::new(),
+                    updated_2d_render: Vec::with_capacity(200),
+                    deleted_2d_render: Vec::new(),
+                    updated_camera_settings: Vec::new(),
+                    updated_camera_transform: Vec::new(),
+                });
+            }
 
             self
         }
 
         pub fn run(&mut self) -> Result<(), &'static str> {
-            let renderer: &mut Renderer;
-            let world: &mut World;
+            assert!(
+                self.renderer.is_some(),
+                "Rendering has not been initialized"
+            );
+            assert!(self.world.is_some(), "ECS World has not been initialized");
 
-            if let Some(rdr) = self.renderer.as_mut() {
-                renderer = rdr;
-            } else {
-                self.logs.error(
-                    consts::ENGINE_CATEGORY,
-                    "Renderer engine system could not be loaded.",
-                );
-                return Err("Renderer engine system could not be loaded.");
-            }
-
-            if let Some(ecs) = self.world.as_mut() {
-                world = ecs.as_mut()
-            } else {
-                self.logs
-                    .error(consts::ENGINE_CATEGORY, "ECS system not initialized");
-                return Err("ECS system not initialized");
-            }
+            let renderer: &mut Renderer = &mut self.renderer.as_mut().unwrap();
 
             let framerate = self.app_settings.target_frame_rate;
             let mut time_point = std::time::Instant::now();
             let mut accumulated_time = 0.0f32;
-            let fixed_delta_time = world.resource::<Time>().fixed_delta_time;
+            let fixed_delta_time = {
+                let world = self.world.as_mut().unwrap().borrow();
+                world.resource::<Time>().fixed_delta_time
+            };
 
             // Game loop [WIP]
             while !renderer.window.should_close() {
+                let mut world: RefMut<World> = self.world.as_mut().unwrap().borrow_mut();
                 renderer.poll_events();
 
                 let dt = std::time::Instant::elapsed(&time_point);
@@ -163,11 +176,13 @@ pub mod runtime {
 
                 // Late update for UI.
                 world.run_schedule(EcsLateUpdateSchedule);
+                drop(world); // Free mutable ref because RenderingBridge hold a mut ref to World
 
                 // Bakes rendering commands
-                world.inject_new_rendering_entities(renderer);
-                world.flush_rendering_command_handles(renderer);
-                world.flush_camera_changes(renderer);
+                let rendering_bridge = self.rendering_bridge.as_mut().unwrap();
+                rendering_bridge.inject_new_rendering_entities(renderer);
+                rendering_bridge.flush_rendering_command_handles(renderer);
+                rendering_bridge.flush_camera_changes(renderer);
 
                 // Render and forward overflow time
                 renderer.render(accumulated_time);

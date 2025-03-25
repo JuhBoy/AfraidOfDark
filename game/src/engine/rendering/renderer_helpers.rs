@@ -1,7 +1,4 @@
-use super::{
-    components::Rect,
-    shaders::{Material, ShaderPack},
-};
+use super::shaders::{Material, ShaderPack};
 use crate::engine::ecs::components::SpriteRenderer2D;
 use crate::engine::rendering::components::RenderRequest;
 use crate::engine::rendering::gfx_device::RenderCommand;
@@ -9,6 +6,7 @@ use crate::engine::rendering::renderer::RenderCmdHd;
 use crate::engine::rendering::renderer_storage::RendererStorage;
 use crate::engine::rendering::shaders::{ShaderInfo, ShaderType};
 use std::cell::RefMut;
+use crate::engine::utils::maths::Rect;
 
 pub type MaterialUpdateMask = u8;
 pub const TEXTURE_MASK: u8 = 1 << 0;
@@ -116,7 +114,7 @@ pub fn shader_texture_update(store: &mut RendererStorage, request: TextureUpdate
         .main_texture
         .clone();
 
-    // If there was a previous texture reduce ref count from the store 
+    // If there was a previous texture reduce ref count from the store
     if let Some(previous_texture) = prev_texture {
         store.decrement_texture_handle(&previous_texture);
     }

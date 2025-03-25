@@ -1,14 +1,14 @@
+use super::{
+    components::MeshInfo, gfx_device::RenderCommand, renderer::RenderCmdHd, shaders::ShaderInfo,
+};
 use crate::engine::rendering::shaders::Texture;
 use crate::engine::utils::file_system::FileSystem;
 use crate::engine::utils::file_system::FileType;
+use bit_set::BitSet;
 use std::{
     cell::RefCell,
     collections::{HashMap, VecDeque},
     rc::Rc,
-};
-
-use super::{
-    components::MeshInfo, gfx_device::RenderCommand, renderer::RenderCmdHd, shaders::ShaderInfo,
 };
 
 #[allow(dead_code)]
@@ -49,7 +49,8 @@ struct HandleCountPair<T> {
 
 pub struct RendererStorage {
     pub render_command_storage: HashMap<RenderCmdHd, Rc<RefCell<RenderCommand>>>,
-    pub renderer_queue: VecDeque<Rc<RefCell<RenderCommand>>>,
+    pub renderer_queue: RefCell<VecDeque<Rc<RefCell<RenderCommand>>>>,
+    pub culled_handles: BitSet,
 
     ram_texture_cache: RefCell<HashMap<String, Rc<Texture>>>,
     gpu_texture_cache: HashMap<String, HandleCountPair<u32>>,
@@ -60,9 +61,10 @@ impl RendererStorage {
     pub fn new() -> RendererStorage {
         RendererStorage {
             render_command_storage: HashMap::new(),
-            renderer_queue: VecDeque::new(),
+            renderer_queue: RefCell::new(VecDeque::new()),
             ram_texture_cache: RefCell::new(HashMap::new()),
             gpu_texture_cache: HashMap::new(),
+            culled_handles: BitSet::with_capacity(2048),
 
             dangling_textures: Vec::with_capacity(200usize),
         }
@@ -95,7 +97,7 @@ impl RendererStorage {
         self.render_command_storage.insert(handle, cmd_ptr.clone());
 
         if push_to_frame {
-            self.renderer_queue.push_back(cmd_ptr);
+            self.renderer_queue.borrow_mut().push_back(cmd_ptr);
         }
 
         handle
@@ -122,7 +124,7 @@ impl RendererStorage {
     pub fn add_to_frame_queue(&mut self, hd: RenderCmdHd) {
         assert!(self.render_command_storage.contains_key(&hd));
         let cmd = self.render_command_storage.get(&hd).unwrap();
-        self.renderer_queue.push_back(cmd.clone());
+        self.renderer_queue.borrow_mut().push_back(cmd.clone());
     }
 
     pub fn load_shader_content(&self, shader_info: &ShaderInfo) -> Result<String, String> {
@@ -158,6 +160,18 @@ impl RendererStorage {
         }
 
         Err("Unknown".to_owned())
+    }
+
+    pub fn mark_culled(&mut self, handle: RenderCmdHd, culled: bool) {
+        if culled {
+            self.culled_handles.insert(handle);
+        } else {
+            self.culled_handles.remove(handle);
+        }
+    }
+
+    pub fn is_culled(&self, handle: RenderCmdHd) -> bool {
+        self.culled_handles.contains(handle)
     }
 
     pub fn increment_texture_handle(&mut self, texture_name: &str, handle: u32) {
@@ -198,7 +212,7 @@ impl RendererStorage {
     where
         F: FnMut(&String, u32),
     {
-        for (_pos, (key, value)) in self.gpu_texture_cache.iter().enumerate() {
+        for (key, value) in self.gpu_texture_cache.iter() {
             if value.count == 0 {
                 callback(key, value.handle);
                 self.dangling_textures.push((key.clone(), value.handle));

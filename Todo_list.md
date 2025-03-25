@@ -39,7 +39,8 @@
 ## In Progress / Planned
 
 - [X] Implement background color clear using camera settings
-- [ ] Implement camera frustum culling
+- [x] Implement camera frustum culling
+  - [x] AABB/OOB simple ECS implementation (No BSP / space partitioning of any kind for now) 
 - [ ] Add preserve aspect ratio option for Sprite2D (integrate changes in ECS, Renderer, and Shader)
 - [ ] Add sorting layer for Sprite2D (integrate changes in ECS and Renderer)
 - [ ] **Small Optimizations**
@@ -74,3 +75,5 @@
 - [ ] Implement threaded asynchronous loading for textures
 - [ ] Implement asynchronous queue for RendererStorage
 - [ ] Implement asynchronous rendering for the OpenGL layer
+
+Now use: https://app.asana.com/ for tasks

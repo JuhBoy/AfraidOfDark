@@ -1,6 +1,6 @@
 extern crate gl;
 extern crate glfw;
-use super::components::{ARGB8Color, Rect, RenderUpdate, RenderingCamera, RenderingUpdateState};
+use super::components::{ARGB8Color, RenderUpdate, RenderingCamera, RenderingUpdateState};
 use super::gfx_device::BufferModule;
 use super::renderer_helpers::{
     compute_gfx_viewport_rect, get_material_changes, get_shader_info_or_default,
@@ -17,7 +17,7 @@ use super::{
 use crate::engine::ecs::components::Transform;
 use crate::engine::rendering::gfx_device::GfxDevice;
 use crate::engine::rendering::opengl::GfxDeviceOpengl;
-use crate::engine::utils::maths::{compute_projection, compute_trs, compute_view_matrix};
+use crate::engine::utils::maths::{compute_projection, compute_trs, compute_view_matrix, Rect};
 use crate::{
     engine::{
         inputs::keyboard::Keyboard, logging::logs_traits::LoggerBase,
@@ -36,7 +36,7 @@ use std::{
 };
 
 pub type OnWindowResizedCb = dyn FnMut(&mut glfw::Window, i32, i32);
-pub type RenderCmdHd = u128;
+pub type RenderCmdHd = usize;
 
 pub struct Renderer {
     keyboard_inputs: Arc<Mutex<Keyboard>>,
@@ -218,7 +218,7 @@ impl Renderer {
     pub fn create_render_command(&mut self, render_req: RenderRequest) -> RenderCmdHd {
         if self.rendering_state == RenderState::Opened {
             println!("Rendering frame has already started, can't add a render command");
-            return 0u128;
+            return 0 as RenderCmdHd;
         }
 
         let gfx = self
@@ -398,6 +398,22 @@ impl Renderer {
         self.rendering_store.remove_render_command(handle)
     }
 
+    pub fn cull(&mut self, handle: RenderCmdHd, value: bool) {
+        self.rendering_store.mark_culled(handle, value);
+    }
+
+    pub fn get_world_camera_viewport(&self) -> Rect<f32> {
+        let position = &self.main_camera.transform.position;
+        let window_rect = &self.window_rect;
+
+        Rect {
+            x: position.x,
+            y: position.y,
+            width: window_rect.width as f32 / self.main_camera.ppu as f32,
+            height: window_rect.height as f32 / self.main_camera.ppu as f32,
+        }
+    }
+
     pub fn update_normalized_viewport(&mut self, x: f32, y: f32, width: f32, height: f32) {
         // Update the viewport on CPU side for now
         let mut vp_borrow = self.viewport_normalized.borrow_mut();
@@ -440,10 +456,11 @@ impl Renderer {
         gfx_device.clear(self.main_camera.clear_color);
 
         // rendering_pass. WIP -> will be multithreaded at end
-        let rendering_queue = &mut self.rendering_store.renderer_queue;
+        let mut rendering_queue = self.rendering_store.renderer_queue.borrow_mut();
         while !rendering_queue.is_empty() {
             if let Some(cmd_ptr) = rendering_queue.pop_front() {
                 let command: Ref<RenderCommand> = cmd_ptr.borrow();
+
                 gfx_device.use_shader_module(&command.shader_module);
 
                 // only updates VIEW/PROJ matrix if the camera transform/settings changed
@@ -461,10 +478,15 @@ impl Renderer {
                         &compute_projection(&self.main_camera, &self.window_rect),
                     );
                 }
+                
+                if self.rendering_store.is_culled(command.handle) {
+                    continue;
+                }
 
                 gfx_device.draw_command(&command);
             }
         }
+        drop(rendering_queue);
 
         // Back to screen buffer
         gfx_device.use_framebuffer(None);
