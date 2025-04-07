@@ -3,11 +3,11 @@ use super::{
     renderer::RenderCmdHd,
     shaders::{Material, Texture},
 };
-use crate::engine::rendering::components::ARGB8Color;
+use crate::engine::rendering::components::{ARGB8Color, ShaderStorageBuffer};
 use crate::engine::rendering::shaders::ShaderType;
-use glm::Matrix4;
-use std::{cell::RefCell, rc::Rc};
 use crate::engine::utils::maths::Rect;
+use glm::{Matrix4, Vector2, Vector4};
+use std::{cell::RefCell, rc::Rc};
 
 pub struct GfxDevice {
     instance: Rc<dyn GfxApiDevice>,
@@ -28,6 +28,7 @@ pub struct ShaderModule {
 #[derive(Debug, Clone)]
 pub struct BufferModule {
     pub handle: u32,
+    pub shader_storage: Option<ShaderStorageBuffer>,
     pub buffer_handles: Option<Vec<u32>>,
     pub buffer_attributes: Option<Vec<f32>>,
     pub vertices: Option<Vec<Vec<f32>>>,
@@ -47,6 +48,7 @@ pub struct RenderCommand {
 pub trait GfxApiShader {
     fn set_attribute_i32(&self, sp_hdl: u32, _identifier: &str, _value: i32);
     fn set_attribute_f32(&self, sp_hdl: u32, _identifier: &str, _value: f32);
+    fn set_attribute_vector2f(&self, sp_hdl: u32, identifier: &str, vec: &Vector2<f32>);
     fn set_attribute_mat4(&self, sp_hdl: u32, _identifier: &str, _value: &Matrix4<f32>);
     fn set_attribute_bool(&self, sp_hdl: u32, _identifier: &str, _value: bool);
     fn set_attribute_color(&self, sp_hdl: u32, _identifier: &str, _value: glm::Vec4);
@@ -61,6 +63,7 @@ pub trait GfxApiDevice {
     fn alloc_shader_module(&self, vertex: u32, frag: u32, material: &Material) -> ShaderModule;
     fn release_shader_module(&self, module_handle: u32);
     fn use_shader_module(&self, module_handle: u32);
+    fn alloc_shader_storage_buffer(&self, data: &Vec<Vector4<f32>>) -> ShaderStorageBuffer;
 
     // ======================
     // Buffers
@@ -86,7 +89,7 @@ pub trait GfxApiDevice {
     // ======================
     // Drawing
     // ======================
-    fn draw_command(&self, command: &RenderCommand);
+    fn draw_command(&self, command: &RenderCommand, procedural: Option<i32>);
     fn clear_color(&self, color: ARGB8Color);
     fn update_viewport(&self, x: u32, y: u32, width: u32, height: u32);
     fn set_update_viewport_callback(
@@ -95,6 +98,7 @@ pub trait GfxApiDevice {
         viewport: RefCell<glm::Vector4<f32>>,
     );
     fn clear_buffers(&self);
+    fn enable_blending(&self); 
 }
 
 impl GfxDevice {
@@ -164,6 +168,10 @@ impl GfxDevice {
         self.instance.release_buffer(module)
     }
 
+    pub fn alloc_shader_storage_buffer(&self, data: &Vec<Vector4<f32>>) -> ShaderStorageBuffer {
+        self.instance.alloc_shader_storage_buffer(data)
+    }
+
     // ======================
     // Drawing
     // ======================
@@ -183,8 +191,8 @@ impl GfxDevice {
         }
     }
 
-    pub fn draw_command(&self, command: &RenderCommand) {
-        self.instance.draw_command(command)
+    pub fn draw_command(&self, command: &RenderCommand, procedural: Option<i32>) {
+        self.instance.draw_command(command, procedural);
     }
 
     pub fn update_viewport(&self, vp_rect: Rect<u32>) {
@@ -203,5 +211,9 @@ impl GfxDevice {
     pub fn clear(&self, color: ARGB8Color) {
         self.instance.clear_color(color);
         self.instance.clear_buffers();
+    }
+    
+    pub fn enable_blending(&self) {
+        self.instance.enable_blending();
     }
 }

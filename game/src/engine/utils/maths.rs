@@ -1,6 +1,6 @@
 use crate::engine::ecs::components::{Position, Scale, Transform};
 use crate::engine::rendering::components::RenderingCamera;
-use glm::{vec3, BaseFloat, Matrix4};
+use glm::{vec3, BaseFloat, Matrix4, Vector2, Vector3};
 use std::ops::{Add, Div, Mul, Sub};
 
 pub fn identity_mat4() -> Matrix4<f32> {
@@ -151,4 +151,163 @@ pub fn intersects(base_rect: Rect<f32>, rect: Rect<f32>) -> bool {
     let x_axis = rect.min_x() <= base_rect.max_x() && rect.max_x() >= base_rect.min_x();
     let y_axis = rect.min_y() <= base_rect.max_y() && rect.max_y() >= base_rect.min_y();
     x_axis && y_axis
+}
+
+#[derive(Debug, Clone)]
+pub struct Segment {
+    pub points: [usize; 2],
+    pub vector: Vector3<f32>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum MajorOrder {
+    Column,
+    Row,
+}
+
+#[derive(Debug, Clone)]
+pub struct Grid {
+    pub columns: Vec<Polyline>,
+    pub rows: Vec<Polyline>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Polyline {
+    pub points: Vec<Vector3<f32>>,
+    pub thickness: f32,
+}
+
+impl Segment {
+    pub fn null() -> Self {
+        Self {
+            points: [0, 0],
+            vector: Vector3::new(0f32, 0f32, 0f32),
+        }
+    }
+
+    pub fn compute_normal(&self) -> Vector3<f32> {
+        Vector3::new(-self.vector.y, self.vector.x, 0f32)
+    }
+
+    pub fn compute_inverse_normal(&self) -> Vector3<f32> {
+        let normal = self.compute_normal();
+        Vector3::new(-1f32 * normal.y, -1f32 * normal.x, 0f32)
+    }
+}
+
+impl Polyline {
+    pub fn get_segment(&self, point_a: usize, point_b: usize) -> Segment {
+        let position_a = self.points.get(point_a);
+        let position_b = self.points.get(point_b);
+
+        if position_a.is_none() || position_b.is_none() {
+            return Segment::null();
+        }
+
+        let vec_a = position_a.unwrap();
+        let vec_b = position_b.unwrap();
+        let segment_dir = *vec_b - *vec_a;
+
+        // Let the vector segment flatten on the x-y plan |_
+        Segment {
+            points: [point_a, point_b],
+            vector: Vector3::new(segment_dir.x, segment_dir.y, 0f32),
+        }
+    }
+
+    pub fn get_normalized_segment(&self, point_a: usize, point_b: usize) -> Segment {
+        let segment = self.get_segment(point_a, point_b);
+        let normalized_vector = glm::normalize(segment.vector);
+
+        Segment {
+            vector: normalized_vector,
+            ..segment
+        }
+    }
+}
+
+impl Grid {
+    pub fn default(w: usize, h: usize, thickness: f32) -> Self {
+        Grid {
+            columns: vec![
+                Polyline {
+                    points: vec![Vector3::new(0.0, 0.0, 0.0); h],
+                    thickness,
+                };
+                w
+            ],
+            rows: vec![
+                Polyline {
+                    points: vec![Vector3::new(0.0, 0.0, 0.0); w],
+                    thickness,
+                };
+                h
+            ],
+        }
+    }
+
+    // build a grid with width * height points
+    // @todo: Use a single buffer for points instead of two col/row buffers
+    pub fn new(width: i32, height: i32, thickness: f32) -> Self {
+        if width == 0 || height == 0 {
+            return Grid::default(0, 0, thickness);
+        }
+
+        // Make sure the grid can be aligned easily
+        let w = if width % 2 == 0 { width } else { width + 1 };
+        let h = if height % 2 == 0 { height } else { height + 1 };
+
+        // Pre allocate grid to prevents resize along the way
+        let mut grid = Grid::default(w as usize, h as usize, thickness);
+
+        for i in 0..w {
+            for j in 0..h {
+                let point = Vector3::new(i as f32, j as f32, 0f32);
+                grid.columns[i as usize].points[j as usize] = point;
+                grid.rows[j as usize].points[i as usize] = point;
+            }
+        }
+
+        grid
+    }
+
+    // build a grid with only 2 point per line and columns
+    pub fn with_minimal_points(width: i32, height: i32, length: f32, thickness: f32) -> Self {
+        // Make sure the grid can be aligned easily
+        let w = if width % 2 == 0 { width } else { width + 1 };
+        let h = if height % 2 == 0 { height } else { height + 1 };
+
+        let mut grid = Grid {
+            columns: vec![
+                Polyline {
+                    points: vec![Vector3::new(0.0, 0.0, 0.0); 2],
+                    thickness,
+                };
+                w as usize
+            ],
+            rows: vec![
+                Polyline {
+                    points: vec![Vector3::new(0.0, 0.0, 0.0); 2],
+                    thickness,
+                };
+                h as usize
+            ],
+        };
+
+        for c in 0..w {
+            grid.columns[c as usize].points[0] = Vector3::new(c as f32, -length / 2.0f32, 1.0);
+            grid.columns[c as usize].points[1] = Vector3::new(c as f32, length / 2.0f32, 1.0);
+        }
+
+        for r in 0..h {
+            grid.rows[r as usize].points[0] = Vector3::new(-length / 2.0f32, r as f32, 1.0);
+            grid.rows[r as usize].points[1] = Vector3::new(length / 2.0f32, r as f32, 1.0);
+        }
+
+        grid
+    }
+
+    pub fn len(&self) -> usize {
+        self.columns.len() + self.rows.len()
+    }
 }

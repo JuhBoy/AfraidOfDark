@@ -1,6 +1,8 @@
 extern crate gl;
 extern crate glfw;
-use super::components::{ARGB8Color, RenderUpdate, RenderingCamera, RenderingUpdateState};
+use super::components::{
+    ARGB8Color, RenderUpdate, RenderingCamera, RenderingUpdateState,
+};
 use super::gfx_device::BufferModule;
 use super::renderer_helpers::{
     compute_gfx_viewport_rect, get_material_changes, get_shader_info_or_default,
@@ -15,9 +17,12 @@ use super::{
     shaders::{Material, ShaderInfo, ShaderType},
 };
 use crate::engine::ecs::components::Transform;
+use crate::engine::rendering::debug::{Debug, DebugGrid};
 use crate::engine::rendering::gfx_device::GfxDevice;
 use crate::engine::rendering::opengl::GfxDeviceOpengl;
-use crate::engine::utils::maths::{compute_projection, compute_trs, compute_view_matrix, Rect};
+use crate::engine::utils::maths::{
+    compute_projection, compute_trs, compute_view_matrix, Rect,
+};
 use crate::{
     engine::{
         inputs::keyboard::Keyboard, logging::logs_traits::LoggerBase,
@@ -58,16 +63,19 @@ pub struct Renderer {
     pub on_window_resized: Option<fn(i32, i32)>,
 
     pub gfx_device: Option<Box<GfxDevice>>,
+
+    // Handles & Debugs
+    grid: Option<DebugGrid>,
 }
 
 impl Renderer {
     pub fn init_with_glfw(settings: &WindowSettings, log: Rc<dyn LoggerBase>) -> Self {
         let mut instance = glfw::init(glfw::fail_on_errors).unwrap();
 
-        // Set the OpenGL version to 3.3 - todo! export this in opengl files
+        // Set the OpenGL version to 4.3 - todo! export this in opengl files
         unsafe {
             glfwInit();
-            glfwWindowHint(glfw::ffi::CONTEXT_VERSION_MAJOR, 3);
+            glfwWindowHint(glfw::ffi::CONTEXT_VERSION_MAJOR, 4);
             glfwWindowHint(glfw::ffi::CONTEXT_VERSION_MINOR, 3);
 
             #[cfg(target_os = "macos")]
@@ -103,7 +111,7 @@ impl Renderer {
             main_camera: RenderingCamera {
                 near: 0.1,
                 far: 50.0,
-                ppu: 380u32,
+                ppu: 100u32,
                 clear_color: ARGB8Color::black(),
                 transform: Transform::default(),
             },
@@ -125,6 +133,7 @@ impl Renderer {
                 Rc::from(GfxOpenGLShaderApi::default()),
             ))),
             on_window_resized: None,
+            grid: None,
         }
     }
 
@@ -173,7 +182,7 @@ impl Renderer {
         let frag_hdl = device.alloc_shader(frag_source, ShaderType::Fragment);
         let shader_module = device.alloc_shader_module(vert_hdl, frag_hdl, &Material::new());
 
-        // Alloc the quand buffer used to draw the entire viewport
+        // Alloc the quad buffer used to draw the entire viewport
         let screen_quad: BufferModule = device.alloc_buffer(
             vec![RendererStorage::load_2d_quad()],
             vec![],
@@ -183,6 +192,13 @@ impl Renderer {
                 uvs_size: 2,
             },
         );
+
+        // Build debug grid
+        let grid = Debug::build_grid(
+            self.gfx_device.as_mut().unwrap().as_mut(),
+            &self.rendering_store,
+        );
+        self.grid = Option::from(grid);
 
         // store the main framebuffer to self
         self.main_framebuffer = Option::from(frame_buffer);
@@ -454,6 +470,8 @@ impl Renderer {
 
         gfx_device.use_framebuffer(Option::from(&self.main_framebuffer));
         gfx_device.clear(self.main_camera.clear_color);
+        // @todo: do state sorting later to prevent batching break, invalidation and stall draw calls
+        gfx_device.enable_blending();
 
         // rendering_pass. WIP -> will be multithreaded at end
         let mut rendering_queue = self.rendering_store.renderer_queue.borrow_mut();
@@ -478,15 +496,19 @@ impl Renderer {
                         &compute_projection(&self.main_camera, &self.window_rect),
                     );
                 }
-                
+
                 if self.rendering_store.is_culled(command.handle) {
                     continue;
                 }
 
-                gfx_device.draw_command(&command);
+                gfx_device.draw_command(&command, None);
             }
         }
         drop(rendering_queue);
+
+        if let Some(grid) = self.grid.as_ref() {
+            grid.draw(gfx_device, &self.main_camera, &self.window_rect);
+        }
 
         // Back to screen buffer
         gfx_device.use_framebuffer(None);

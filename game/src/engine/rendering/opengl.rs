@@ -1,16 +1,16 @@
+use super::components::{ARGB8Color, BufferSettings, FrameBuffer, ShaderStorageBuffer};
+use super::shaders::Texture;
 use crate::engine::rendering::gfx_device;
 use crate::engine::rendering::gfx_device::{BufferModule, RenderCommand, ShaderModule};
 use crate::engine::rendering::shaders::Material;
 use crate::engine::rendering::shaders::ShaderType;
 use gfx_device::GfxApiDevice;
 use gl::types::{GLsizei, GLsizeiptr};
+use glm::Vector4;
 use std::cell::RefCell;
 use std::ffi::CString;
 use std::mem::size_of;
 use std::ptr;
-
-use super::components::{ARGB8Color, BufferSettings, FrameBuffer};
-use super::shaders::Texture;
 
 #[derive(Default)]
 pub struct GfxDeviceOpengl;
@@ -110,6 +110,35 @@ impl GfxApiDevice for GfxDeviceOpengl {
         }
     }
 
+    fn alloc_shader_storage_buffer(&self, data: &Vec<Vector4<f32>>) -> ShaderStorageBuffer {
+        let mut buffer_handle = 0u32;
+        let mut vao_handle: u32 = 0;
+
+        unsafe {
+            gl::GenVertexArrays(1, &mut vao_handle as *mut u32);
+            gl::BindVertexArray(vao_handle);
+
+            gl::GenBuffers(1, &mut buffer_handle as *mut u32);
+            gl::BindBuffer(gl::SHADER_STORAGE_BUFFER, buffer_handle);
+            gl::BufferData(
+                gl::SHADER_STORAGE_BUFFER,
+                (size_of::<Vector4<f32>>() * data.len()) as GLsizeiptr,
+                data.as_ptr().cast(),
+                gl::STATIC_DRAW,
+            );
+            gl::BindBufferBase(gl::SHADER_STORAGE_BUFFER, 0, buffer_handle);
+
+            gl::BindBuffer(gl::SHADER_STORAGE_BUFFER, 0);
+            gl::BindVertexArray(0);
+        }
+
+        ShaderStorageBuffer {
+            vao_handle,
+            self_handle: buffer_handle,
+            count: data.len(),
+        }
+    }
+
     fn alloc_buffer(
         &self,
         vertices_set: Vec<Vec<f32>>,
@@ -191,6 +220,7 @@ impl GfxApiDevice for GfxDeviceOpengl {
 
         BufferModule {
             handle: vao_handle,
+            shader_storage: None,
             buffer_handles: Option::from(buffer_handles),
             buffer_attributes: None,
             vertices: if settings.keep_vertices {
@@ -368,11 +398,16 @@ impl GfxApiDevice for GfxDeviceOpengl {
         }
     }
 
-    fn draw_command(&self, command: &RenderCommand) {
+    fn draw_command(&self, command: &RenderCommand, procedural: Option<i32>) {
         unsafe {
             gl::BindVertexArray(command.buffer_module.handle);
-            gl::PolygonMode(gl::FRONT, gl::FILL);
-            gl::PolygonMode(gl::BACK, gl::LINE);
+            gl::PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
+            gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+
+            // if there is a shader buffer object, bind it !
+            if let Some(sso) = command.buffer_module.shader_storage.as_ref() {
+                gl::BindBufferBase(gl::SHADER_STORAGE_BUFFER, 0, sso.self_handle);
+            }
 
             command
                 .shader_module
@@ -384,15 +419,10 @@ impl GfxApiDevice for GfxDeviceOpengl {
                     gl::BindTexture(gl::TEXTURE_2D, *x);
                 });
 
-            for buffer in command
-                .buffer_module
-                .buffer_handles
-                .as_ref()
-                .unwrap()
-                .iter()
-            {
-                gl::BindBuffer(gl::ARRAY_BUFFER, *buffer);
+            if procedural.is_none() {
                 gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
+            } else {
+                gl::DrawArrays(gl::TRIANGLES, 0, procedural.unwrap());
             }
 
             gl::BindVertexArray(0);
@@ -421,7 +451,7 @@ impl GfxApiDevice for GfxDeviceOpengl {
     fn set_update_viewport_callback(
         &self,
         window: &mut glfw::Window,
-        viewport: RefCell<glm::Vector4<f32>>,
+        viewport: RefCell<Vector4<f32>>,
     ) {
         window.set_size_callback(move |window: &mut glfw::Window, w: i32, h: i32| {
             let (scaled_width, scaled_height) = window.get_framebuffer_size();
@@ -455,6 +485,14 @@ impl GfxApiDevice for GfxDeviceOpengl {
     fn clear_buffers(&self) {
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+        }
+    }
+
+    fn enable_blending(&self) {
+        unsafe {
+            gl::PolygonMode(gl::BACK, gl::LINE);
+            gl::Enable(gl::BLEND);
+            gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
         }
     }
 }

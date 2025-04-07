@@ -99,7 +99,7 @@ impl Camera {
             fov: 80.0,
             near: 0.1,
             far: 50.0,
-            ppu: 380u32,
+            ppu: 100u32,
             viewport: (0.0, 0.0, 1.0, 1.0),
             mode: Projection::Orthographic,
             output_target: Option::None,

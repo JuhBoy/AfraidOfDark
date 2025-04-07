@@ -16,6 +16,13 @@ pub struct FrameBuffer {
     pub height: i32,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct ShaderStorageBuffer {
+    pub vao_handle: u32,
+    pub self_handle: u32,
+    pub count: usize,
+}
+
 #[derive(Debug)]
 pub struct RenderingCamera {
     pub near: f32,
@@ -58,7 +65,6 @@ pub enum RenderState {
     Closed,
 }
 
-
 #[derive(Clone, Copy, Debug)]
 pub struct ARGB8Color {
     pub r: u8,
@@ -97,8 +103,8 @@ impl ARGB8Color {
     }
 }
 
-impl RenderingUpdateState { 
-    pub fn reset(&mut self) { 
+impl RenderingUpdateState {
+    pub fn reset(&mut self) {
         self.camera_settings = false;
         self.camera_transform = false;
     }

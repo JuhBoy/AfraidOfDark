@@ -6,3 +6,4 @@ pub mod opengl;
 pub mod renderer_storage;
 pub mod gfx_opengl_shaders;
 pub mod components;
+pub mod debug;

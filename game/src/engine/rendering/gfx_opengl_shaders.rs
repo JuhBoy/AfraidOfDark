@@ -1,5 +1,5 @@
 use super::gfx_device::GfxApiShader;
-use glm::Matrix4;
+use glm::{Matrix4, Vector2};
 use std::ffi::CString;
 
 #[derive(Default)]
@@ -40,6 +40,22 @@ impl GfxApiShader for GfxOpenGLShaderApi {
             },
             Err(e) => {
                 println!("[Shader API Error]: {}", e);
+            }
+        }
+    }
+
+    fn set_attribute_vector2f(&self, sp_hdl: u32, identifier: &str, vec: &Vector2<f32>) {
+        unsafe {
+            gl::UseProgram(sp_hdl);
+        }
+
+        let location: Result<i32, String> = self.get_uniform_location(sp_hdl, identifier);
+        match location {
+            Ok(uniform_id) => unsafe {
+                gl::Uniform2fv(uniform_id, 1, vec.as_array().as_ptr().cast());
+            },
+            Err(err) => {
+                println!("[OpenGl Shader]: Failed to get uniform location {}", &err);
             }
         }
     }

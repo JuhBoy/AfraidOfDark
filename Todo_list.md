@@ -40,7 +40,13 @@
 
 - [X] Implement background color clear using camera settings
 - [x] Implement camera frustum culling
-  - [x] AABB/OOB simple ECS implementation (No BSP / space partitioning of any kind for now) 
+  - [x] AABB/OOB simple ECS implementation (No BSP / space partitioning of any kind for now)
+- [o] Grid visualisation Debug Tool
+  - [x] Math: Create Polyline data structure
+  - [ ] Rendering: Api to create Shader Storage buffer object
+  - [ ] Shader: Vertex shader with gl_VertexID to create quad from polyline input
+  - [ ] Bonus|Shader: Add miter joints for Polylines
+  - [ ] Bonus|Shader: Add round joints for Polylines
 - [ ] Add preserve aspect ratio option for Sprite2D (integrate changes in ECS, Renderer, and Shader)
 - [ ] Add sorting layer for Sprite2D (integrate changes in ECS and Renderer)
 - [ ] **Small Optimizations**

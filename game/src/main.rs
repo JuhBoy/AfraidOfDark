@@ -15,6 +15,7 @@ use rand::random;
 use crate::engine::ecs::resources::CameraCullingState;
 
 pub mod engine;
+mod tests;
 
 #[derive(bevy_ecs::component::Component)]
 pub struct ChangeChecker {
@@ -179,13 +180,13 @@ fn main() {
             .unwrap()
             .add_systems(move_camera_2d);
 
-        let pos: f32 = 1.2f32;
+        let pos: f32 = 1.0f32;
         for i in 0..100 {
             let _entity = world.spawn((
                 Transform {
                     position: Position {
-                        x: (i as f32) * pos,
-                        y: 0.0,
+                        x: 0.5f32 + (i as f32) * pos,
+                        y: 0.5f32,
                         z: 0.0,
                     },
                     rotation: Rotation {
