@@ -152,9 +152,7 @@ impl GfxApiDevice for GfxDeviceOpengl {
             gl::GenVertexArrays(1, ptr::addr_of_mut!(vao_handle));
             gl::BindVertexArray(vao_handle);
 
-            let mut i: usize = 0;
-
-            for vertex_buffer in &vertices_set {
+            for (i, vertex_buffer) in vertices_set.iter().enumerate() {
                 let mut vbo_handles: u32 = 0;
                 let buffer_size: usize = size_of::<f32>() * vertex_buffer.len();
                 let vertex_stride: usize =
@@ -209,7 +207,6 @@ impl GfxApiDevice for GfxDeviceOpengl {
                 buffer_handles.push(vbo_handles);
 
                 gl::BindVertexArray(0);
-                i += 1;
             }
         }
 
@@ -223,11 +220,7 @@ impl GfxApiDevice for GfxDeviceOpengl {
             shader_storage: None,
             buffer_handles: Option::from(buffer_handles),
             buffer_attributes: None,
-            vertices: if settings.keep_vertices {
-                Option::from(vertices_set)
-            } else {
-                None
-            },
+            vertices: settings.keep_vertices.then_some(vertices_set),
             vertices_count: Option::from(buffers_sizes),
         }
     }
@@ -364,16 +357,8 @@ impl GfxApiDevice for GfxDeviceOpengl {
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
 
-            let internal_format = if texture.channels == 3 {
-                gl::RGB as i32
-            } else {
-                gl::RGBA as i32
-            };
-            let pixel_format = if texture.channels == 3 {
-                gl::RGB
-            } else {
-                gl::RGBA
-            };
+            let internal_format = texture.get_format() as i32;
+            let pixel_format = texture.get_format();
             gl::TexImage2D(
                 gl::TEXTURE_2D,
                 0,

@@ -1,7 +1,5 @@
 use crate::engine::rendering::shaders::Texture;
 use image::ImageReader;
-use std::collections::HashMap;
-use std::sync::{LazyLock, Mutex, RwLock};
 use std::{
     env,
     fs::File,
@@ -36,7 +34,7 @@ impl FileSystem {
                     .expect(format!("Failed to read file {}", &file_path).as_str());
                 Ok(file_content)
             }
-            Err(_) => Err(String::from(format!("Could not open file {}", &file_path))),
+            Err(_) => Err(format!("Could not open file {}", &file_path)),
         }
     }
 
@@ -46,10 +44,7 @@ impl FileSystem {
         let reader = ImageReader::open(&file_path);
 
         if reader.is_err() {
-            return Err(String::from(format!(
-                "[File System] Can't open file {}",
-                file_path
-            )));
+            return Err(format!("[File System] Can't open file {}", file_path));
         }
 
         match reader.unwrap().decode() {
@@ -70,7 +65,7 @@ impl FileSystem {
 
                 Ok(tex)
             }
-            Err(_) => Err(String::from(format!("Could not open file {}", &file_path))),
+            Err(_) => Err(format!("Could not open file {}", &file_path)),
         }
     }
 
@@ -84,7 +79,6 @@ impl FileSystem {
 
     fn get_path(file_path: &str, f_type: FileType) -> String {
         let current_dir: PathBuf = env::current_dir().expect("Could not get current directory");
-        let path: String;
 
         let type_path: &str = match f_type {
             FileType::Material => MATERIAL_PATH,
@@ -93,7 +87,7 @@ impl FileSystem {
             FileType::Mesh => MESH_PATH,
         };
 
-        path = current_dir
+        let path: String = current_dir
             .join(ASSETS_PATH)
             .join(type_path)
             .join(file_path)

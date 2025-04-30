@@ -12,6 +12,7 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 name = "afraid_of_dark"
 version = "0.1.0"
 dependencies = [
+ "assets",
  "bevy_ecs",
  "bit-set",
  "gl",
@@ -95,6 +96,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "assets"
+version = "0.1.0"
+dependencies = [
+ "image",
 ]
 
 [[package]]

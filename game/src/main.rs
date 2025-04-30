@@ -8,11 +8,11 @@ use engine::ecs::resources::Time;
 use engine::lib::runtime::App;
 
 use crate::engine::ecs::components::Position;
+use crate::engine::ecs::resources::CameraCullingState;
 use crate::engine::rendering::components::ARGB8Color;
 use engine::utils::app_settings::{ApplicationSettings, WindowMode, WindowSettings};
 use glm::{abs, vec4};
 use rand::random;
-use crate::engine::ecs::resources::CameraCullingState;
 
 pub mod engine;
 mod tests;
@@ -208,7 +208,7 @@ fn main() {
                 },
             ));
         }
-        
+
         let culling_state = {
             let cam = world.get_resource_mut::<CameraCullingState>().unwrap();
             cam.camera_entity.unwrap()

@@ -41,12 +41,12 @@
 - [X] Implement background color clear using camera settings
 - [x] Implement camera frustum culling
   - [x] AABB/OOB simple ECS implementation (No BSP / space partitioning of any kind for now)
-- [o] Grid visualisation Debug Tool
+- [x] Grid visualisation Debug Tool
   - [x] Math: Create Polyline data structure
-  - [ ] Rendering: Api to create Shader Storage buffer object
-  - [ ] Shader: Vertex shader with gl_VertexID to create quad from polyline input
-  - [ ] Bonus|Shader: Add miter joints for Polylines
-  - [ ] Bonus|Shader: Add round joints for Polylines
+  - [x] Rendering: Api to create Shader Storage buffer object
+  - [x] Shader: Vertex shader with gl_VertexID to create quad from polyline input
+  - [x] Bonus|Shader: Add miter joints for Polylines
+  - [x] Bonus|Shader: Add round joints for Polylines
 - [ ] Add preserve aspect ratio option for Sprite2D (integrate changes in ECS, Renderer, and Shader)
 - [ ] Add sorting layer for Sprite2D (integrate changes in ECS and Renderer)
 - [ ] **Small Optimizations**
@@ -78,7 +78,12 @@
 - [ ] Implement memory & CPU profiling events for Rendering and ECS
 
 ### Async File System Operations
-- [ ] Implement threaded asynchronous loading for textures
+- [o] Implement threaded asynchronous loading for textures
+    - [ ] Implement File load from disk
+    - [ ] Implement Execution Queue (push & poll)
+    - [ ] Implements Polling and Queuing from Renderer.rs
+        - [ ] Adds Path config (sent to asset crate)
+        - [ ] Remove old code used to load files
 - [ ] Implement asynchronous queue for RendererStorage
 - [ ] Implement asynchronous rendering for the OpenGL layer
 

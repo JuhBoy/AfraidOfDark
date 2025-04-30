@@ -1,8 +1,6 @@
 extern crate gl;
 extern crate glfw;
-use super::components::{
-    ARGB8Color, RenderUpdate, RenderingCamera, RenderingUpdateState,
-};
+use super::components::{ARGB8Color, RenderUpdate, RenderingCamera, RenderingUpdateState};
 use super::gfx_device::BufferModule;
 use super::renderer_helpers::{
     compute_gfx_viewport_rect, get_material_changes, get_shader_info_or_default,
@@ -20,9 +18,7 @@ use crate::engine::ecs::components::Transform;
 use crate::engine::rendering::debug::{Debug, DebugGrid};
 use crate::engine::rendering::gfx_device::GfxDevice;
 use crate::engine::rendering::opengl::GfxDeviceOpengl;
-use crate::engine::utils::maths::{
-    compute_projection, compute_trs, compute_view_matrix, Rect,
-};
+use crate::engine::utils::maths::{compute_projection, compute_trs, compute_view_matrix, Rect};
 use crate::{
     engine::{
         inputs::keyboard::Keyboard, logging::logs_traits::LoggerBase,
@@ -313,7 +309,7 @@ impl Renderer {
         let mut update_mask: MaterialUpdateMask = 0u8;
 
         // check changes in material properties and construct mask
-        if !update_req.material.is_none() {
+        if update_req.material.is_some() {
             let command: Ref<RenderCommand> = self.rendering_store.get_ref(update_req.render_cmd);
             let current: &Material = &command.shader_module.material;
             let updated: &Material = update_req.material.as_ref().unwrap();

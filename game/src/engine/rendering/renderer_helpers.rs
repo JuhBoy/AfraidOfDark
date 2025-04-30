@@ -5,8 +5,8 @@ use crate::engine::rendering::gfx_device::RenderCommand;
 use crate::engine::rendering::renderer::RenderCmdHd;
 use crate::engine::rendering::renderer_storage::RendererStorage;
 use crate::engine::rendering::shaders::{ShaderInfo, ShaderType};
-use std::cell::RefMut;
 use crate::engine::utils::maths::Rect;
+use std::cell::RefMut;
 
 pub type MaterialUpdateMask = u8;
 pub const TEXTURE_MASK: u8 = 1 << 0;

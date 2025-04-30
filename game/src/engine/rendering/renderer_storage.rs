@@ -152,7 +152,7 @@ impl RendererStorage {
 
         let tex = FileSystem::load_texture(String::from(texture_name));
 
-        if let Some(texture) = tex.ok() {
+        if let Ok(texture) = tex {
             texture_cache.insert(String::from(texture_name), Rc::from(texture));
             return Ok(texture_cache[texture_name].clone());
         } else {

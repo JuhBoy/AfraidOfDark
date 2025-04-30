@@ -12,7 +12,7 @@ pub mod runtime {
                 update_camera_settings_system, update_camera_transform_system,
             },
         },
-        logging::{consts, logs::Logger, logs_traits::LoggerBase},
+        logging::{logs::Logger, logs_traits::LoggerBase},
         rendering::renderer::Renderer,
         utils::{app_settings::ApplicationSettings, rendering_bridge::RenderingBridge},
     };
