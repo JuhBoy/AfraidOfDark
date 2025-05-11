@@ -5,9 +5,12 @@ use assets::processors::files::{FileLoadTask, FileStorage};
 use assets::processors::textures::{TextureStorage, TextureTask};
 use assets::storage::ErasedAssetStorage;
 use assets::storage_server::StorageServer;
+use assets::uuid::Uuid;
 use std::any::TypeId;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::ffi::OsString;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 
 // this is the types used to filter the server requests and assotiate storages
@@ -103,7 +106,7 @@ fn mono_thread_should_complete_work_with_multiple_request_test() {
 
 #[test]
 fn mono_thread_should_load_single_texture() {
-    let file_to_load = String::from("./tests/fixtures/texture_11.png");
+    let file_to_load = OsString::from("./tests/fixtures/texture_11.png");
     let (mut exe, storage_server) = init_executor();
     let thread_task = TextureTask {
         identifier: Cow::Owned(file_to_load),
@@ -135,11 +138,102 @@ fn mono_thread_should_load_single_texture() {
     assert!(!texture.data.is_empty());
 }
 
-// fn should_process_texture_load_when_asset_server_got_request() {
-//     let mut asset_server = AssetServer::default();
-//     asset_server.init();
-//
-//     let handle: Option<AssetHandle> = asset_server
-//         .push_texture_work("./tests/fixtures/texture_11.png".to_string());
-//
-// }
+#[test]
+fn should_process_texture_loading_when_asset_server_got_request() {
+    let mut asset_server = AssetServer::default();
+    asset_server.configuration.texture_dir = PathBuf::from("./tests/fixtures/");
+
+    let texture_name = String::from("texture_11.png");
+    asset_server.init();
+
+    let handle: Option<AssetHandle> = asset_server.push_texture_work(texture_name);
+    assert!(handle.is_some());
+
+    asset_server.shutdown(Signal::StopWaitAllPendingWorks);
+
+    let result_data = asset_server.pop_texture_asset(handle.unwrap());
+    assert!(result_data.is_ok());
+
+    let texture = result_data.unwrap();
+    assert!(!texture.data.is_empty());
+}
+
+#[test]
+fn should_process_textures_loading_when_asset_server_got_requests() {
+    let mut asset_server = AssetServer::default();
+    asset_server.configuration.texture_dir = PathBuf::from("./tests/fixtures/");
+
+    let texture_name = String::from("texture_11.png");
+    asset_server.init();
+
+    let mut handles: [AssetHandle; 50] = [AssetHandle {
+        internal_id: 0,
+        asset_type: TypeId::of::<AssetTexture>(),
+    }; 50];
+
+    for handle in handles.iter_mut() {
+        let result = asset_server.push_texture_work(texture_name.clone());
+        assert!(result.is_some());
+
+        let r_handle = result.unwrap();
+        *handle = r_handle;
+    }
+
+    asset_server.shutdown(Signal::StopWaitAllPendingWorks);
+
+    for handle in handles.iter() {
+        let data = asset_server.pop_asset::<AssetTexture>(*handle);
+        assert!(data.is_ok());
+        assert!(!data.unwrap().data.is_empty());
+    }
+}
+
+#[test]
+fn should_not_pop_asset_with_same_handle() {
+    let mut asset_server = AssetServer::default();
+    asset_server.configuration.texture_dir = PathBuf::from("./tests/fixtures/");
+
+    let texture_name = String::from("texture_11.png");
+    asset_server.init();
+
+    let handle = asset_server.push_texture_work(texture_name);
+    assert!(handle.is_some());
+
+    let maybe_data = asset_server.pop_texture_asset(handle.unwrap());
+    assert!(maybe_data.is_err());
+
+    let data: Option<AssetTexture>;
+
+    loop {
+        match asset_server.pop_texture_asset(handle.unwrap()) {
+            Ok(texture) => {
+                data = Option::from(texture);
+                break;
+            }
+            Err(err) => println!("error: {}", err),
+        }
+    }
+
+    assert!(data.is_some());
+    assert!(!data.unwrap().data.is_empty());
+
+    let result = asset_server.pop_texture_asset(handle.unwrap());
+    assert!(result.is_err());
+}
+
+#[test]
+fn should_create_same_hash_handle_when_same_string_is_used() {
+    let uuid: Uuid<usize> = Uuid::default();
+    let identifier: String = String::from("abcdefgh.txt");
+
+    let handle_a = AssetHandle {
+        internal_id: uuid.new(&identifier),
+        asset_type: TypeId::of::<AssetTexture>(),
+    };
+    let handle_b = AssetHandle {
+        internal_id: uuid.new(&identifier),
+        asset_type: TypeId::of::<AssetTexture>(),
+    };
+
+    assert!(handle_a == handle_b);
+}

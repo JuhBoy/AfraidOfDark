@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 image = "0.25.6"
+uuid = { version = "1.16.0", features = ["v4"] }

@@ -4,6 +4,7 @@ use crate::{
     storage_server::StorageServer,
 };
 use image::ImageReader;
+use std::ffi::{OsStr, OsString};
 use std::{
     borrow::Cow,
     collections::HashMap,
@@ -15,7 +16,7 @@ pub struct TextureStorage {
 }
 
 pub struct TextureTask<'a> {
-    pub identifier: Cow<'a, str>,
+    pub identifier: Cow<'a, OsStr>,
     pub storage: Arc<RwLock<StorageServer>>,
 }
 
@@ -48,9 +49,7 @@ impl AssetStorage for TextureStorage {
 
 impl ThreadTask for TextureTask<'_> {
     fn invoke(&mut self, asset_handle: AssetHandle) -> TaskResult {
-        let _hdl = asset_handle;
-
-        let path: &str = &self.identifier;
+        let path: &OsStr = &self.identifier;
         let img_reader = ImageReader::open(path);
         if img_reader.is_err() {
             return TaskResult::Failed("failed to open texture file");
@@ -62,8 +61,9 @@ impl ThreadTask for TextureTask<'_> {
                 let height = img.height();
                 let channels = if img.color().has_alpha() { 4 } else { 3 }; // todo! handle 1-2-3 and 4 channels later
 
-                let img = img.flipv();
-                let data: Vec<u8> = img.into_bytes();
+                // @todo! this copy the whole buffer and increase the load time, it would probably be best to do that via shaders.
+                let flipped_image = img.flipv();
+                let data: Vec<u8> = flipped_image.into_bytes();
 
                 let texture_file = AssetTexture {
                     data,
@@ -86,7 +86,7 @@ impl ThreadTask for TextureTask<'_> {
 }
 
 impl TextureTask<'_> {
-    pub(crate) fn new(identifier: String, storage: Arc<RwLock<StorageServer>>) -> Self {
+    pub fn new(identifier: OsString, storage: Arc<RwLock<StorageServer>>) -> Self {
         Self {
             identifier: Cow::Owned::<'_>(identifier),
             storage,

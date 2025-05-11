@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 #[derive(Ord, PartialOrd)]
 pub struct AssetHandle {
-    pub internal_id: u32,
+    pub internal_id: u64,
     pub asset_type: TypeId,
 }
 
