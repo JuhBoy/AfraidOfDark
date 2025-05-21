@@ -122,7 +122,7 @@ impl RendererStorage {
     }
 
     pub fn add_to_frame_queue(&mut self, hd: RenderCmdHd) {
-        assert!(self.render_command_storage.contains_key(&hd));
+        debug_assert!(self.render_command_storage.contains_key(&hd));
         let cmd = self.render_command_storage.get(&hd).unwrap();
         self.renderer_queue.borrow_mut().push_back(cmd.clone());
     }

@@ -1,7 +1,5 @@
 use super::{
-    components::{BufferSettings, FrameBuffer},
-    renderer::RenderCmdHd,
-    shaders::{Material, Texture},
+    components::{BufferSettings, FrameBuffer}, gfx_opengl_shaders::GfxOpenGLShaderApi, opengl::GfxDeviceOpengl, renderer::RenderCmdHd, shaders::{Material, Texture}
 };
 use crate::engine::rendering::components::{ARGB8Color, ShaderStorageBuffer};
 use crate::engine::rendering::shaders::ShaderType;
@@ -10,10 +8,10 @@ use glm::{Matrix4, Vector2, Vector4};
 use std::{cell::RefCell, rc::Rc};
 
 pub struct GfxDevice {
-    instance: Rc<dyn GfxApiDevice>,
+    gpu: Rc<dyn GfxApiDevice>,
     cmd_ids: RenderCmdHd,
 
-    pub shader_api: Rc<dyn GfxApiShader>,
+    pub shaders: Rc<dyn GfxApiShader>,
 }
 
 #[derive(Clone)]
@@ -104,23 +102,31 @@ pub trait GfxApiDevice {
 impl GfxDevice {
     pub fn new(device_impl: Rc<dyn GfxApiDevice>, shader_impl: Rc<dyn GfxApiShader>) -> Self {
         Self {
-            instance: device_impl,
-            shader_api: shader_impl,
+            gpu: device_impl,
+            shaders: shader_impl,
             cmd_ids: 0,
         }
     }
 
+    pub fn with_opengl() -> Self {
+        Self {
+            gpu: Rc::from(GfxDeviceOpengl::default()),
+            shaders: Rc::from(GfxOpenGLShaderApi::default()),
+            cmd_ids: 0
+        }
+    }
+
     pub fn use_framebuffer(&self, framebuffer: Option<&FrameBuffer>) {
-        self.instance.use_framebuffer(framebuffer);
+        self.gpu.use_framebuffer(framebuffer);
     }
 
     pub fn blit_main_framebuffer(&self, screen_module: &BufferModule, framebuffer: &FrameBuffer) {
-        self.instance
+        self.gpu
             .blit_main_framebuffer(screen_module, framebuffer);
     }
 
     pub fn alloc_framebuffer(&self, width: i32, height: i32) -> FrameBuffer {
-        self.instance
+        self.gpu
             .alloc_framebuffer(width, height)
             .expect(&format!(
                 "[Gfx Device] Failed to allocate framebuffer (w: {}, h: {})",
@@ -129,27 +135,27 @@ impl GfxDevice {
     }
 
     pub fn alloc_shader(&self, source: String, s_type: ShaderType) -> u32 {
-        self.instance.alloc_shader(source, s_type)
+        self.gpu.alloc_shader(source, s_type)
     }
 
     pub fn alloc_shader_module(&self, vertex: u32, frag: u32, material: &Material) -> ShaderModule {
-        self.instance.alloc_shader_module(vertex, frag, material)
+        self.gpu.alloc_shader_module(vertex, frag, material)
     }
 
     pub fn use_shader_module(&self, module: &ShaderModule) {
-        self.instance.use_shader_module(module.self_handle);
+        self.gpu.use_shader_module(module.self_handle);
     }
 
     pub fn delete_shader_module(&self, module: ShaderModule) {
-        self.instance.release_shader_module(module.self_handle);
+        self.gpu.release_shader_module(module.self_handle);
     }
 
     pub fn alloc_texture(&self, sp_hdl: u32, texture: &Texture) -> u32 {
-        self.instance.alloc_texture(sp_hdl, texture)
+        self.gpu.alloc_texture(sp_hdl, texture)
     }
 
     pub fn release_texture(&self, tex_id: u32) {
-        self.instance.release_texture(tex_id);
+        self.gpu.release_texture(tex_id);
     }
 
     // ======================
@@ -161,15 +167,15 @@ impl GfxDevice {
         indices: Vec<Vec<u32>>,
         settings: BufferSettings,
     ) -> BufferModule {
-        self.instance.alloc_buffer(vertices_set, indices, settings)
+        self.gpu.alloc_buffer(vertices_set, indices, settings)
     }
 
     pub fn release_buffer(&self, module: BufferModule) {
-        self.instance.release_buffer(module)
+        self.gpu.release_buffer(module)
     }
 
     pub fn alloc_shader_storage_buffer(&self, data: &Vec<Vector4<f32>>) -> ShaderStorageBuffer {
-        self.instance.alloc_shader_storage_buffer(data)
+        self.gpu.alloc_shader_storage_buffer(data)
     }
 
     // ======================
@@ -192,11 +198,11 @@ impl GfxDevice {
     }
 
     pub fn draw_command(&self, command: &RenderCommand, procedural: Option<i32>) {
-        self.instance.draw_command(command, procedural);
+        self.gpu.draw_command(command, procedural);
     }
 
     pub fn update_viewport(&self, vp_rect: Rect<u32>) {
-        self.instance
+        self.gpu
             .update_viewport(vp_rect.x, vp_rect.y, vp_rect.width, vp_rect.height);
     }
 
@@ -205,15 +211,15 @@ impl GfxDevice {
         window: &mut glfw::Window,
         viewport: RefCell<glm::Vector4<f32>>,
     ) {
-        self.instance.set_update_viewport_callback(window, viewport);
+        self.gpu.set_update_viewport_callback(window, viewport);
     }
 
     pub fn clear(&self, color: ARGB8Color) {
-        self.instance.clear_color(color);
-        self.instance.clear_buffers();
+        self.gpu.clear_color(color);
+        self.gpu.clear_buffers();
     }
     
     pub fn enable_blending(&self) {
-        self.instance.enable_blending();
+        self.gpu.enable_blending();
     }
 }

@@ -10,14 +10,12 @@ use super::renderer_helpers::{
 use super::{
     components::{BufferSettings, FrameBuffer, RenderRequest, RenderState},
     gfx_device::{RenderCommand, ShaderModule},
-    gfx_opengl_shaders::GfxOpenGLShaderApi,
     renderer_storage::RendererStorage,
     shaders::{Material, ShaderInfo, ShaderType},
 };
 use crate::engine::ecs::components::Transform;
 use crate::engine::rendering::debug::{Debug, DebugGrid};
 use crate::engine::rendering::gfx_device::GfxDevice;
-use crate::engine::rendering::opengl::GfxDeviceOpengl;
 use crate::engine::utils::maths::{compute_projection, compute_trs, compute_view_matrix, Rect};
 use crate::{
     engine::{
@@ -58,7 +56,7 @@ pub struct Renderer {
     pub log: Rc<dyn LoggerBase>,
     pub on_window_resized: Option<fn(i32, i32)>,
 
-    pub gfx_device: Option<Box<GfxDevice>>,
+    pub gfx_device: GfxDevice,
 
     // Handles & Debugs
     grid: Option<DebugGrid>,
@@ -124,10 +122,7 @@ impl Renderer {
             window,
             events,
             log,
-            gfx_device: Option::from(Box::new(GfxDevice::new(
-                Rc::from(GfxDeviceOpengl::default()),
-                Rc::from(GfxOpenGLShaderApi::default()),
-            ))),
+            gfx_device: GfxDevice::with_opengl(),
             on_window_resized: None,
             grid: None,
         }
@@ -146,14 +141,13 @@ impl Renderer {
         self.window_rect.width = scaled_width as u32;
         self.window_rect.height = scaled_height as u32;
 
-        let device: &Box<GfxDevice> = self
-            .gfx_device
-            .as_ref()
-            .expect("Graphic device not allocated");
-        device.set_update_viewport_callback(&mut self.window, self.viewport_normalized.clone());
+        self.gfx_device
+            .set_update_viewport_callback(&mut self.window, self.viewport_normalized.clone());
 
         // Alloc the main framebuffer for post process, it will blit to the screen buffer
-        let frame_buffer: FrameBuffer = device.alloc_framebuffer(scaled_width, scaled_height);
+        let frame_buffer: FrameBuffer = self
+            .gfx_device
+            .alloc_framebuffer(scaled_width, scaled_height);
 
         // allocate base shaders and programs to show the main framebuffer quad to the whole screen
         let vertex_info = ShaderInfo {
@@ -174,12 +168,18 @@ impl Renderer {
             .rendering_store
             .load_shader_content(&fragment_info)
             .expect("Failed to create shader");
-        let vert_hdl = device.alloc_shader(vert_source, ShaderType::Vertex);
-        let frag_hdl = device.alloc_shader(frag_source, ShaderType::Fragment);
-        let shader_module = device.alloc_shader_module(vert_hdl, frag_hdl, &Material::new());
+        let vert_hdl = self
+            .gfx_device
+            .alloc_shader(vert_source, ShaderType::Vertex);
+        let frag_hdl = self
+            .gfx_device
+            .alloc_shader(frag_source, ShaderType::Fragment);
+        let shader_module =
+            self.gfx_device
+                .alloc_shader_module(vert_hdl, frag_hdl, &Material::new());
 
         // Alloc the quad buffer used to draw the entire viewport
-        let screen_quad: BufferModule = device.alloc_buffer(
+        let screen_quad: BufferModule = self.gfx_device.alloc_buffer(
             vec![RendererStorage::load_2d_quad()],
             vec![],
             BufferSettings {
@@ -190,10 +190,7 @@ impl Renderer {
         );
 
         // Build debug grid
-        let grid = Debug::build_grid(
-            self.gfx_device.as_mut().unwrap().as_mut(),
-            &self.rendering_store,
-        );
+        let grid = Debug::build_grid(&mut self.gfx_device, &self.rendering_store);
         self.grid = Option::from(grid);
 
         // store the main framebuffer to self
@@ -233,10 +230,7 @@ impl Renderer {
             return 0 as RenderCmdHd;
         }
 
-        let gfx = self
-            .gfx_device
-            .as_deref_mut()
-            .expect("Graphic device not allocated");
+        let gfx = &mut self.gfx_device;
 
         let [vert_info, frag_info] = get_shader_info_or_default(&render_req);
         let vs_content = self
@@ -276,12 +270,12 @@ impl Renderer {
             }
 
             const DEFAULT_TEXTURE_IDX: i32 = 0;
-            gfx.shader_api
+            gfx.shaders
                 .set_texture_unit(shader_module.self_handle, DEFAULT_TEXTURE_IDX);
             shader_module.texture_handles.push(texture_handle);
         }
 
-        gfx.shader_api.set_attribute_color(
+        gfx.shaders.set_attribute_color(
             shader_module.self_handle,
             "surface_color",
             shader_module.material.color,
@@ -292,11 +286,11 @@ impl Renderer {
         let view_matrix: Matrix4<f32> = compute_view_matrix(&self.main_camera.transform);
         let proj_matrix: Matrix4<f32> = compute_projection(&self.main_camera, &self.window_rect);
 
-        gfx.shader_api
+        gfx.shaders
             .set_attribute_mat4(shader_module.self_handle, "TRS", &trs_matrix);
-        gfx.shader_api
+        gfx.shaders
             .set_attribute_mat4(shader_module.self_handle, "VIEW", &view_matrix);
-        gfx.shader_api
+        gfx.shaders
             .set_attribute_mat4(shader_module.self_handle, "PROJ", &proj_matrix);
 
         let command: RenderCommand = gfx.build_command(shader_module, buffer_module);
@@ -324,14 +318,12 @@ impl Renderer {
             return false;
         }
 
-        let gpu: &mut GfxDevice = self.gfx_device.as_deref_mut().expect("gfx_device not init");
-
         if (update_mask & COLOR_MASK) != 0 {
             let mut command: RefMut<RenderCommand> =
                 self.rendering_store.get_mut_ref(update_req.render_cmd);
             let new_color: Vector4<f32> = update_req.material.as_ref().unwrap().color;
 
-            gpu.shader_api.set_attribute_color(
+            self.gfx_device.shaders.set_attribute_color(
                 command.shader_module.self_handle,
                 "surface_color",
                 new_color,
@@ -362,7 +354,8 @@ impl Renderer {
                             .get_ref(update_req.render_cmd)
                             .shader_module
                             .self_handle;
-                        texture_handle = Option::from(gpu.alloc_texture(shader_hdl, &texture));
+                        texture_handle =
+                            Option::from(self.gfx_device.alloc_texture(shader_hdl, &texture));
                     }
                     Err(err) => {
                         println!(
@@ -388,7 +381,7 @@ impl Renderer {
         if (update_mask & TRANSFORM_MASK) != 0 {
             let command = self.rendering_store.get_ref(update_req.render_cmd);
             let new_trs_mat4: Matrix4<f32> = compute_trs(update_req.transform.as_ref().unwrap());
-            gpu.shader_api.set_attribute_mat4(
+            self.gfx_device.shaders.set_attribute_mat4(
                 command.shader_module.self_handle,
                 "TRS",
                 &new_trs_mat4,
@@ -449,11 +442,6 @@ impl Renderer {
     pub fn render(&mut self, _delta_time: f32) {
         self.rendering_state = RenderState::Opened;
 
-        let gfx_device = self
-            .gfx_device
-            .as_ref()
-            .expect("Graphic device not allocated");
-
         // Updates to default viewport before drawing the scene into the main buffer texture
         let default_viewport: Vector4<f32> = Vector4 {
             x: 0f32,
@@ -462,12 +450,13 @@ impl Renderer {
             w: 1f32,
         };
         let viewport: Rect<u32> = compute_gfx_viewport_rect(&default_viewport, &self.window);
-        gfx_device.update_viewport(viewport);
+        self.gfx_device.update_viewport(viewport);
 
-        gfx_device.use_framebuffer(Option::from(&self.main_framebuffer));
-        gfx_device.clear(self.main_camera.clear_color);
+        self.gfx_device
+            .use_framebuffer(Option::from(&self.main_framebuffer));
+        self.gfx_device.clear(self.main_camera.clear_color);
         // @todo: do state sorting later to prevent batching break, invalidation and stall draw calls
-        gfx_device.enable_blending();
+        self.gfx_device.enable_blending();
 
         // rendering_pass. WIP -> will be multithreaded at end
         let mut rendering_queue = self.rendering_store.renderer_queue.borrow_mut();
@@ -475,18 +464,18 @@ impl Renderer {
             if let Some(cmd_ptr) = rendering_queue.pop_front() {
                 let command: Ref<RenderCommand> = cmd_ptr.borrow();
 
-                gfx_device.use_shader_module(&command.shader_module);
+                self.gfx_device.use_shader_module(&command.shader_module);
 
                 // only updates VIEW/PROJ matrix if the camera transform/settings changed
                 if self.updates_state.camera_transform {
-                    gfx_device.shader_api.set_attribute_mat4(
+                    self.gfx_device.shaders.set_attribute_mat4(
                         command.shader_module.self_handle,
                         "VIEW",
                         &compute_view_matrix(&self.main_camera.transform),
                     );
                 }
                 if self.updates_state.camera_settings {
-                    gfx_device.shader_api.set_attribute_mat4(
+                    self.gfx_device.shaders.set_attribute_mat4(
                         command.shader_module.self_handle,
                         "PROJ",
                         &compute_projection(&self.main_camera, &self.window_rect),
@@ -497,26 +486,27 @@ impl Renderer {
                     continue;
                 }
 
-                gfx_device.draw_command(&command, None);
+                self.gfx_device.draw_command(&command, None);
             }
         }
         drop(rendering_queue);
 
         if let Some(grid) = self.grid.as_ref() {
-            grid.draw(gfx_device, &self.main_camera, &self.window_rect);
+            grid.draw(&self.gfx_device, &self.main_camera, &self.window_rect);
         }
 
         // Back to screen buffer
-        gfx_device.use_framebuffer(None);
-        gfx_device.clear(self.main_camera.clear_color);
+        self.gfx_device.use_framebuffer(None);
+        self.gfx_device.clear(self.main_camera.clear_color);
 
         let normalized_screen_viewport = self.viewport_normalized.clone().into_inner();
         let pixel_screen_viewport: Rect<u32> =
             compute_gfx_viewport_rect(&normalized_screen_viewport, &self.window);
-        gfx_device.update_viewport(pixel_screen_viewport);
+        self.gfx_device.update_viewport(pixel_screen_viewport);
 
-        gfx_device.use_shader_module(self.screen_shader_module.as_ref().unwrap());
-        gfx_device.blit_main_framebuffer(
+        self.gfx_device
+            .use_shader_module(self.screen_shader_module.as_ref().unwrap());
+        self.gfx_device.blit_main_framebuffer(
             self.screen_quad_buffer.as_ref().unwrap(),
             self.main_framebuffer.as_ref().unwrap(),
         );
@@ -524,7 +514,7 @@ impl Renderer {
         // Release all dangling textures
         self.rendering_store.iter_dangling_textures(|name, hdl| {
             println!("[Renderer] Release textures {} {}", name, hdl);
-            gfx_device.release_texture(hdl);
+            self.gfx_device.release_texture(hdl);
         });
 
         // Reset the various states for the current frame

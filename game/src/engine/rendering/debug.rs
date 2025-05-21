@@ -58,14 +58,14 @@ impl Debug {
             }
 
             device
-                .shader_api
+                .shaders
                 .set_attribute_f32(shader_module.self_handle, "thickness", 0.01f32);
-            device.shader_api.set_attribute_color(
+            device.shaders.set_attribute_color(
                 shader_module.self_handle,
                 "surface_color",
                 color,
             );
-            device.shader_api.set_attribute_vector2f(
+            device.shaders.set_attribute_vector2f(
                 shader_module.self_handle,
                 "offset",
                 &glm::Vector2::new(
@@ -114,14 +114,14 @@ impl DebugGrid {
         for (cmd, vertices) in self.lines.iter() {
             // Update GPU data
             device
-                .shader_api
+                .shaders
                 .set_attribute_mat4(cmd.shader_module.self_handle, "TRS", trs_mat);
-            device.shader_api.set_attribute_mat4(
+            device.shaders.set_attribute_mat4(
                 cmd.shader_module.self_handle,
                 "VIEW",
                 &view_matrix,
             );
-            device.shader_api.set_attribute_mat4(
+            device.shaders.set_attribute_mat4(
                 cmd.shader_module.self_handle,
                 "PROJ",
                 &proj_matrix,

@@ -79,8 +79,8 @@
 
 ### Async File System Operations
 - [o] Implement threaded asynchronous loading for textures
-    - [ ] Implement File load from disk
-    - [ ] Implement Execution Queue (push & poll)
+    - [x] Implement File load from disk
+    - [x] Implement Execution Queue (push & poll)
     - [ ] Implements Polling and Queuing from Renderer.rs
         - [ ] Adds Path config (sent to asset crate)
         - [ ] Remove old code used to load files
