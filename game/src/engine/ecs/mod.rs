@@ -3,4 +3,4 @@ pub mod components_impl;
 pub mod config;
 pub mod resources;
 pub mod systems;
-mod ecs_lib;
+pub mod my_ecs;

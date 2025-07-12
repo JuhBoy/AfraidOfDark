@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
-use bevy_ecs::{component::Component, entity::Entity, system::Resource};
-
+use bevy_ecs::{component::Component, entity::Entity};
+use bevy_ecs::prelude::Resource;
 use crate::engine::rendering::components::ARGB8Color;
 use crate::engine::{
     inputs::keyboard::Keyboard,
