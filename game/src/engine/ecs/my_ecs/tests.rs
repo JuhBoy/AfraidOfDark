@@ -1,8 +1,15 @@
-use crate::engine::ecs::my_ecs::components::{ComponentBufferSparseSet, ComponentStorage};
-use crate::engine::ecs::my_ecs::ecs::ECS;
-use crate::engine::ecs::my_ecs::entities::{Entity, EntityAllocator, EntityStorage};
-use crate::engine::ecs::my_ecs::systems::{System, SystemUpdate};
-use crate::engine::ecs::my_ecs::utils::{ByteBuffer, SparseSet, SparseVec, ID};
+use super::{
+    components::ComponentStorage,
+    ecs::ECS,
+    systems::{System, SystemUpdate},
+};
+use crate::engine::ecs::my_ecs::systems::{make_system, Query, QueryMut, SystemParams};
+use crate::engine::ecs::my_ecs::utils::SparseVec;
+use crate::engine::ecs::my_ecs::{
+    components::ComponentBufferSparseSet,
+    entities::{Entity, EntityAllocator, EntityStorage},
+    utils::{ByteBuffer, SparseSet},
+};
 use std::any::TypeId;
 
 pub struct Position {
@@ -14,6 +21,10 @@ pub struct Velocity {
     pub x: f32,
     pub y: f32,
 }
+
+pub struct Transform(i32);
+pub struct Rigidbody2D(i32);
+pub struct BoxCollider(i32);
 
 #[test]
 pub fn test_entity_storage_implementation() {
@@ -105,7 +116,7 @@ pub fn test_component_storage() {
     assert!(!com_storage.has(entity_0));
 
     let inserted = com_storage.insert(entity_10, Velocity { x: 50.0, y: 0.0 });
-    let Some(pos) = com_storage.entities.get_unchecked(entity_10.id()) else {
+    let Some(pos) = com_storage.entities.get_unchecked(entity_10.id) else {
         panic!("couldn't get the entity view");
     };
     assert!(inserted);
@@ -154,7 +165,7 @@ pub fn test_component_storage() {
             assert_eq!(i as f32, get.x);
         }
 
-        let sparse = com_storage.entities.get_unchecked(ett.id());
+        let sparse = com_storage.entities.get_unchecked(ett.id);
         assert!(sparse.is_some());
         assert_eq!(99 - i, sparse.unwrap().index);
 
@@ -184,14 +195,16 @@ pub fn test_component_storage() {
     let r_5 = com_storage.insert(Entity { id: 5, version: 1 }, Velocity { x: 500f32, y: 0.0 });
     assert!(r_5);
 
-    let r_5_vel = com_storage.get::<Velocity>(Entity { id: 5, version: 1 }).unwrap();
+    let r_5_vel = com_storage
+        .get::<Velocity>(Entity { id: 5, version: 1 })
+        .unwrap();
     assert_eq!(500f32, r_5_vel.x);
 }
 
 #[test]
 pub fn test_ecs_implementation() {
     let mut ecs = ECS {
-        entity_storage: EntityStorage::new(1000),
+        entity_storage: EntityStorage::new(2000),
         component_storage: ComponentStorage::new(100),
         update_systems: vec![],
     };
@@ -200,21 +213,84 @@ pub fn test_ecs_implementation() {
     let entity = ecs.entity_storage.create();
 
     // register one system WIP
-    let system = System {
-        name: "the one system",
-        update_type: SystemUpdate::Update,
-        action: ecs_system,
-        query: vec![TypeId::of::<Velocity>(), TypeId::of::<Position>()],
-    };
+    let system = make_system(
+        "the one system",
+        SystemUpdate::Update,
+        player_movement_system,
+    );
     ecs.register_system(system);
 
     // registries
     ecs.component_storage.allocate::<Velocity>();
+    ecs.component_storage.allocate::<Position>();
     ecs.allocate_storage::<Position>();
 
     // add a new component to an entity
-    let _ = ecs.component_storage.add_component::<Velocity>(entity);
-    let _ = ecs.add_component::<Position>(entity);
+    let _ = ecs
+        .component_storage
+        .add_component::<Velocity>(entity, Velocity { x: 0f32, y: 0f32 });
+    let _ = ecs.add_component::<Position>(entity, Position { x: 0f32, y: 0f32 });
+
+    // creates archetype
+    let _success = ecs.make_archetype::<(Position, Velocity)>();
+    let _success_2 = ecs.make_archetype::<(Position, Velocity, Rigidbody2D)>();
+
+    for i in 0..1000 {
+        let ett = ecs.entity_storage.create();
+        let add_pos = ecs.add_component::<Position>(
+            ett,
+            Position {
+                x: i as f32,
+                y: 0f32,
+            },
+        );
+        let add_vel = ecs.add_component::<Velocity>(
+            ett,
+            Velocity {
+                x: i as f32,
+                y: 0f32,
+            },
+        );
+
+        if !add_pos || !add_vel {
+            panic!("[Tests] Failled to add components");
+        }
+    }
+
+    for _i in 0..60 {
+        // ecs.update();
+        let mut query: Query<(Position, Velocity)> = Query::new(&ecs);
+
+        for (pos, vel) in query.iter() {
+            println!("{}", pos.x);
+            println!("{}", vel.x);
+        }
+
+        for (pos, vel) in query.iter_mut() {
+            println!("mutable: {}", pos.x);
+            println!("mutable: {}", vel.x);
+        }
+    }
 }
 
-pub fn ecs_system() {}
+pub fn player_movement_system(params: &mut SystemParams) {
+    let entity = params.world.entity_storage.create();
+    let e = params
+        .world
+        .add_component::<Velocity>(entity, Velocity { x: 999f32, y: 0f32 });
+    if !e {
+        panic!("couldn't add velocity to entity");
+    }
+
+    let mut query: Query<(Position, Velocity)> = Query::new(params.world);
+
+    for (pos, vel) in query.iter() {
+        println!("{}", pos.x);
+        println!("{}", vel.x);
+    }
+
+    for (pos, vel) in query.iter_mut() {
+        println!("{}", pos.x);
+        println!("{}", vel.x);
+    }
+}

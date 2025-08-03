@@ -1,7 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::Without;
 use bevy_ecs::schedule::Schedules;
-use bevy_ecs::system::{Query, Res};
+use bevy_ecs::system::{Commands, Query, Res};
 use engine::ecs::components::{Camera, Inputs, Rotation, Scale, SpriteRenderer2D, Transform};
 use engine::ecs::config::{EcsFixedUpdateSchedule, EcsLateUpdateSchedule, EcsUpdateSchedule};
 use engine::ecs::resources::Time;
@@ -24,8 +24,18 @@ pub struct ChangeChecker {
     pub flip_color: bool,
 }
 
-pub fn update_camera(inputs: Res<Inputs>, mut query: Query<(Entity, &mut Camera)>) {
+pub fn update_camera(
+    inputs: Res<Inputs>,
+    mut query: Query<(Entity, &mut Camera)>,
+    mut commands: Commands,
+) {
     let mut camera_count: i32 = 0;
+
+    let ett = commands.spawn(ChangeChecker {
+        accumulated_time: 0.0,
+        color_timer: 0.0,
+        flip_color: false,
+    });
 
     for (_entity, mut camera) in query.iter_mut() {
         camera_count += 1;

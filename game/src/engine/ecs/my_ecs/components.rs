@@ -1,6 +1,9 @@
+use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
+
 use crate::engine::ecs::my_ecs::entities::Entity;
 use crate::engine::ecs::my_ecs::utils::{ByteBuffer, SparseVec, SparseView, ID};
 use std::any::TypeId;
+use std::cell::{RefCell, RefMut};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
@@ -14,17 +17,17 @@ pub struct ComponentBufferSparseSet {
 }
 
 impl ComponentBufferSparseSet {
-    pub fn insert<T>(&mut self, ett: Entity, vel: T) -> bool {
-        let view = self.entities.get_unchecked(ett.id());
+    pub fn insert<T>(&mut self, ett: Entity, component: T) -> bool {
+        let view = self.entities.get_unchecked_mut(ett.id());
 
         match view {
             Some(active_view) => {
                 active_view.version = ett.version();
                 self.entity_to_component[active_view.index] = ett;
-                return self.component_buffer.replace(active_view.index, vel);
+                return self.component_buffer.replace(active_view.index, component);
             }
             None => {
-                let Some(dense_index) = self.component_buffer.allocate(vel) else {
+                let Some(dense_index) = self.component_buffer.allocate(component) else {
                     return false;
                 };
                 if dense_index >= self.entity_to_component.len() {
@@ -54,7 +57,7 @@ impl ComponentBufferSparseSet {
             return Some(removed_index);
         }
 
-        let last_view = self.entities.get_unchecked(last_entity.id());
+        let last_view = self.entities.get_unchecked_mut(last_entity.id());
         *last_view = Some(SparseView {
             index: removed_index,
             version: last_entity.version,
@@ -72,7 +75,7 @@ impl ComponentBufferSparseSet {
         self.entities.has(ett.id(), ett.version())
     }
 
-    pub fn get<T>(&mut self, ett: Entity) -> Option<&T> {
+    pub fn get<'a, T>(&'a self, ett: Entity) -> Option<&'a T> {
         let Some(view) = self.entities.get_unchecked(ett.id()) else {
             return None;
         };
@@ -81,7 +84,7 @@ impl ComponentBufferSparseSet {
     }
 
     pub fn get_mut<T>(&mut self, ett: Entity) -> Option<&mut T> {
-        let Some(view) = self.entities.get_unchecked(ett.id()) else {
+        let Some(view) = self.entities.get_unchecked_mut(ett.id()) else {
             return None;
         };
 
@@ -92,15 +95,21 @@ impl ComponentBufferSparseSet {
 /// ============================
 /// Component Storage ----------
 /// ============================
+
+#[derive(Clone, Copy)]
+pub struct StorageMetaData {
+    pub index: usize,
+}
+
 pub struct ComponentStorage {
-    pub(crate) store_view_by_component: HashMap<TypeId, usize>,
-    pub(crate) component_storages: Vec<ComponentBufferSparseSet>,
+    pub(crate) storages_index_by_type_id: HashMap<TypeId, usize>,
+    pub(crate) storages: Vec<AtomicRefCell<ComponentBufferSparseSet>>,
 }
 impl ComponentStorage {
     pub fn new(capacity: usize) -> Self {
         ComponentStorage {
-            store_view_by_component: HashMap::with_capacity(capacity),
-            component_storages: Vec::with_capacity(capacity),
+            storages_index_by_type_id: HashMap::with_capacity(capacity),
+            storages: Vec::with_capacity(capacity),
         }
     }
 
@@ -109,30 +118,69 @@ impl ComponentStorage {
         T: 'static,
     {
         let component_type_id = TypeId::of::<T>();
-        let Entry::Vacant(entry) = self.store_view_by_component.entry(component_type_id) else {
+        let Entry::Vacant(entry) = self.storages_index_by_type_id.entry(component_type_id) else {
             return false;
         };
 
-        self.component_storages.push(ComponentBufferSparseSet {
-            entities: SparseVec::new(100),
-            component_buffer: ByteBuffer::with_capacity::<T>(100).unwrap(),
+        let storage = ComponentBufferSparseSet {
+            entities: SparseVec::new(2000),
+            component_buffer: ByteBuffer::with_capacity::<T>(2000).unwrap(),
             entity_to_component: vec![],
-        });
-        let index = self.component_storages.len() - 1;
+        };
+        self.storages.push(AtomicRefCell::new(storage));
+
+        let index = self.storages.len() - 1;
         entry.insert(index);
 
         true
     }
 
-    pub fn add_component<T>(&mut self, entity: Entity) -> bool
+    pub fn add_component<T>(&mut self, entity: Entity, comp: T) -> bool
     where
         T: 'static,
     {
         let search_type = TypeId::of::<T>();
-        if !self.store_view_by_component.contains_key(&search_type) {
+        if !self.storages_index_by_type_id.contains_key(&search_type) {
             return false;
         }
 
-        true
+        let id = self.storages_index_by_type_id[&search_type];
+        let store = &mut self.storages[id].borrow_mut();
+
+        store.insert::<T>(entity, comp)
+    }
+
+    pub fn get_storage<T>(&self) -> AtomicRef<ComponentBufferSparseSet>
+    where
+        T: 'static,
+    {
+        let component_type_id = TypeId::of::<T>();
+        self.storages[self.storages_index_by_type_id[&component_type_id]].borrow()
+    }
+
+    pub fn get_storage_mut<T>(&self) -> AtomicRefMut<ComponentBufferSparseSet>
+    where
+        T: 'static,
+    {
+        let component_type_id = TypeId::of::<T>();
+        self.storages[self.storages_index_by_type_id[&component_type_id]].borrow_mut()
+    }
+
+    pub fn get_storage_mut_by_id(&self, index: usize) -> AtomicRefMut<ComponentBufferSparseSet> {
+        self.storages[index].borrow_mut()
+    }
+
+    pub fn get_storage_by_id(&self, index: usize) -> AtomicRef<ComponentBufferSparseSet> {
+        self.storages[index].borrow()
+    }
+
+    pub fn get_statage_metadata<T>(&self) -> StorageMetaData
+    where
+        T: 'static,
+    {
+        let component_type_id = TypeId::of::<T>();
+        let index = self.storages_index_by_type_id[&component_type_id];
+
+        StorageMetaData { index }
     }
 }
