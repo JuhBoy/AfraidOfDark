@@ -10,7 +10,7 @@ use crate::engine::ecs::my_ecs::{
     entities::{Entity, EntityAllocator, EntityStorage},
     utils::{ByteBuffer, SparseSet},
 };
-use std::any::TypeId;
+use std::{any::TypeId, time::SystemTime};
 
 pub struct Position {
     pub x: f32,
@@ -212,7 +212,7 @@ pub fn test_ecs_implementation() {
     // create an entity
     let entity = ecs.entity_storage.create();
 
-    // register one system WIP
+    // register one system
     let system = make_system(
         "the one system",
         SystemUpdate::Update,
@@ -257,40 +257,41 @@ pub fn test_ecs_implementation() {
         }
     }
 
-    for _i in 0..60 {
-        // ecs.update();
-        let mut query: Query<(Position, Velocity)> = Query::new(&ecs);
-
-        for (pos, vel) in query.iter() {
-            println!("{}", pos.x);
-            println!("{}", vel.x);
-        }
-
-        for (pos, vel) in query.iter_mut() {
-            println!("mutable: {}", pos.x);
-            println!("mutable: {}", vel.x);
+    for i in 0..60 {
+        println!("Update frame {}", i);
+        let time = SystemTime::now();
+        ecs.update();
+        match time.elapsed() {
+            Ok(time) => println!(
+                "Duration: {}ns | {}ms ==================",
+                time.as_nanos(),
+                (time.as_nanos() as f64) / 1e+6f64
+            ),
+            Err(_) => panic!(),
         }
     }
 }
 
 pub fn player_movement_system(params: &mut SystemParams) {
-    let entity = params.world.entity_storage.create();
-    let e = params
-        .world
-        .add_component::<Velocity>(entity, Velocity { x: 999f32, y: 0f32 });
-    if !e {
-        panic!("couldn't add velocity to entity");
-    }
+    // let entity = params.world.entity_storage.create();
+    // let e = params
+    //     .world
+    //     .add_component::<Velocity>(entity, Velocity { x: 999f32, y: 0f32 });
+    // if !e {
+    //     panic!("couldn't add velocity to entity");
+    // }
 
     let mut query: Query<(Position, Velocity)> = Query::new(params.world);
 
     for (pos, vel) in query.iter() {
-        println!("{}", pos.x);
-        println!("{}", vel.x);
+        // println!("{}", pos.x);
+        // println!("{}", vel.x);
     }
 
     for (pos, vel) in query.iter_mut() {
-        println!("{}", pos.x);
-        println!("{}", vel.x);
+        pos.x = 125f32;
+        vel.x = 125f32;
+        // println!("{}", pos.x);
+        // println!("{}", vel.x);
     }
 }

@@ -15,6 +15,7 @@ pub enum SystemUpdate {
 }
 pub struct SystemParams<'a> {
     pub world: &'a mut ECS,
+    pub system_name: &'static str,
 }
 
 // Queries =============================
@@ -93,16 +94,18 @@ where
         )
     }
 
-    fn entities<'a>(_world: &'a ECS, views: &Self::View<'_>) -> &'a [Entity] {
+    fn entities<'a>(world: &'a ECS, views: &Self::View<'_>) -> &'a [Entity] {
         let view_a = &views.0;
         let view_b = &views.1;
 
-        let a_len = _world.component_storage.storages[view_a.store.index]
-            .borrow()
+        let a_len = world
+            .component_storage
+            .get_storage_by_id(view_a.store.index)
             .entity_to_component
             .len();
-        let b_len = _world.component_storage.storages[view_b.store.index]
-            .borrow()
+        let b_len = world
+            .component_storage
+            .get_storage_by_id(view_b.store.index)
             .entity_to_component
             .len();
 
@@ -112,26 +115,33 @@ where
             view_b.store.index
         };
 
-        let store = _world.component_storage.storages[id].borrow();
+        let store = world.component_storage.get_storage_by_id(id);
         let entities = store.entity_to_component.as_slice().as_ptr();
 
         unsafe {
             let etts: &'a [Entity] = std::slice::from_raw_parts(entities, a_len.min(b_len));
-            return etts;
+            etts
         }
     }
 
     fn iter_predicat(entity: Entity, world: &ECS, view: &Self::View<'_>) -> bool {
-        let store = &world.component_storage.storages[view.0.store.index];
-        let store2 = &world.component_storage.storages[view.1.store.index];
+        let store = world
+            .component_storage
+            .get_storage_by_id(view.0.store.index);
+        let store2 = world
+            .component_storage
+            .get_storage_by_id(view.1.store.index);
 
-        // store.has(entity) && store2.has(entity)
-        return true;
+        store.has(entity) && store2.has(entity)
     }
 
     fn get_dense<'a>(entity: Entity, world: &'a ECS, view: &Self::View<'_>) -> Self::Item<'a> {
-        let store = world.component_storage.storages[view.0.store.index].borrow();
-        let store2 = world.component_storage.storages[view.1.store.index].borrow();
+        let store = world
+            .component_storage
+            .get_storage_by_id(view.0.store.index);
+        let store2 = world
+            .component_storage
+            .get_storage_by_id(view.1.store.index);
 
         let component_a: *const A = store.get::<A>(entity).unwrap();
         let component_b: *const B = store2.get::<B>(entity).unwrap();
@@ -191,6 +201,10 @@ where
     pub fn iter_mut(&mut self) -> QueryMut<'a, A> {
         QueryMut::new(self.world)
     }
+
+    pub fn iter_with_entity(&self) -> QueryRef<'a, A> {
+        QueryRef::new(self.world)
+    }
 }
 
 pub struct QueryRef<'iter, A>
@@ -220,13 +234,13 @@ where
         }
     }
 }
-impl<'iter, A> Iterator for QueryRef<'iter, A>
+impl<'a, A> Iterator for QueryRef<'a, A>
 where
     A: TQuery,
 {
-    type Item = A::Item<'iter>;
+    type Item = A::Item<'a>;
 
-    fn next(&mut self) -> Option<A::Item<'iter>> {
+    fn next(&mut self) -> Option<A::Item<'a>> {
         for i in self.next..self.entities.len() {
             let entity = self.entities[i];
             self.next = i + 1;

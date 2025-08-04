@@ -14,7 +14,10 @@ impl ECS {
 
         for system in self.update_systems.iter() {
             unsafe {
-                let params = SystemParams { world: &mut *ptr };
+                let params = SystemParams {
+                    world: &mut *ptr,
+                    system_name: system.name,
+                };
                 system.run(params);
             }
         }
