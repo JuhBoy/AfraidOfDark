@@ -3,14 +3,14 @@ use super::{
     ecs::ECS,
     systems::{System, SystemUpdate},
 };
-use crate::engine::ecs::my_ecs::systems::{make_system, Query, QueryMut, SystemParams};
+use crate::engine::ecs::my_ecs::{archetypes::ArchetypesManager, systems::{make_system, Query, QueryMut, SystemParams}};
 use crate::engine::ecs::my_ecs::utils::SparseVec;
 use crate::engine::ecs::my_ecs::{
     components::ComponentBufferSparseSet,
     entities::{Entity, EntityAllocator, EntityStorage},
     utils::{ByteBuffer, SparseSet},
 };
-use std::{any::TypeId, time::SystemTime};
+use std::{any::TypeId, cell::RefCell, time::SystemTime};
 
 pub struct Position {
     pub x: f32,
@@ -207,10 +207,11 @@ pub fn test_ecs_implementation() {
         entity_storage: EntityStorage::new(2000),
         component_storage: ComponentStorage::new(100),
         update_systems: vec![],
+        archetypes: RefCell::new(ArchetypesManager::new()),
     };
 
     // create an entity
-    let entity = ecs.entity_storage.create();
+    let _entity = ecs.entity_storage.create();
 
     // register one system
     let system = make_system(
@@ -225,15 +226,10 @@ pub fn test_ecs_implementation() {
     ecs.component_storage.allocate::<Position>();
     ecs.allocate_storage::<Position>();
 
-    // add a new component to an entity
-    let _ = ecs
-        .component_storage
-        .add_component::<Velocity>(entity, Velocity { x: 0f32, y: 0f32 });
-    let _ = ecs.add_component::<Position>(entity, Position { x: 0f32, y: 0f32 });
-
-    // creates archetype
+    // creates archetype (WIP)
     let _success = ecs.make_archetype::<(Position, Velocity)>();
     let _success_2 = ecs.make_archetype::<(Position, Velocity, Rigidbody2D)>();
+    let _success_3 = ecs.make_archetype::<(Position, Velocity, Rigidbody2D, BoxCollider)>();
 
     for i in 0..1000 {
         let ett = ecs.entity_storage.create();

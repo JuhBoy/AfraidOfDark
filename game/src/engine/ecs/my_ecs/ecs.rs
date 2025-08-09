@@ -1,12 +1,17 @@
-use crate::engine::ecs::my_ecs::archetypes::{ArchetypeDefinition, ComponentData};
+use std::cell::RefCell;
+
+use crate::engine::ecs::my_ecs::archetypes::{
+    ArchetypeDefinition, ArchetypesManager, ComponentData,
+};
 use crate::engine::ecs::my_ecs::components::ComponentStorage;
 use crate::engine::ecs::my_ecs::entities::{Entity, EntityStorage};
-use crate::engine::ecs::my_ecs::systems::{System, SystemParams, TQuery, TSystem};
+use crate::engine::ecs::my_ecs::systems::{System, SystemParams, TSystem};
 
 pub struct ECS {
     pub entity_storage: EntityStorage,
     pub component_storage: ComponentStorage,
     pub update_systems: Vec<System>,
+    pub archetypes: RefCell<ArchetypesManager>,
 }
 impl ECS {
     pub fn update(&mut self) {
@@ -45,11 +50,14 @@ impl ECS {
         self.component_storage.add_component::<T>(entity, comp)
     }
 
-    pub fn make_archetype<A>(&mut self) -> bool
+    pub fn make_archetype<A>(&self) -> bool
     where
         A: ArchetypeDefinition,
     {
         let components: &[ComponentData] = A::COMPONENTS;
-        true
+        let mut manager = self.archetypes.borrow_mut();
+        let success: bool = manager.register(components);
+
+        success
     }
 }
