@@ -6,17 +6,10 @@ use crate::engine::ecs::my_ecs::systems::TQuery;
 //
 pub struct ArchetypeLayout {
     pub components: &'static [ComponentData],
-    pub start_index: usize,
-    pub super_set_len: usize,
+    pub set_len: usize,
 }
 pub struct ArchetypesManager {
     pub layouts: Vec<ArchetypeLayout>,
-}
-pub enum ArchetypeRegisterState {
-    Subset,       //
-    Equals,       // the exact same archetype has been registered
-    SuperSet,     // the new Archetype is a superset of another Archertype
-    Incompatible, // The Archetype is intersecting with others but is not preserving order.
 }
 
 impl ArchetypesManager {
@@ -30,10 +23,12 @@ impl ArchetypesManager {
     {
     }
 
-    pub fn register(&mut self, components: &[ComponentData]) -> bool {
-        let mut inserted: bool = false;
+    #[must_use]
+    pub fn register(&mut self, components: &'static [ComponentData]) -> bool {
+        let mut insert_index: usize = self.layouts.len();
+        let mut inserted_order: Ordering = Ordering::Equal;
 
-        for layout in self.layouts.iter() {
+        for (index, layout) in self.layouts.iter().enumerate() {
             // if the components are completly different => all good !
             if layout.components.iter().all(|c| !components.contains(c)) {
                 continue;
@@ -41,14 +36,61 @@ impl ArchetypesManager {
 
             match components.len().cmp(&layout.components.len()) {
                 Ordering::Less => {
-                    let surject = components.iter().all(|c| layout.components.contains(c)); 
+                    let intersects: bool = components.iter().all(|c| layout.components.contains(c));
+
+                    if !intersects {
+                        println!("[ECS] Subset of Archetype cannot varies in type")
+                    }
+
+                    insert_index = index;
+                    inserted_order = Ordering::Less;
                 }
-                Ordering::Equal => {}
-                Ordering::Greater => {}
+                Ordering::Equal => {
+                    // they are equals but intersects, we can't accept it as a sub/super Set
+                    return false;
+                }
+                Ordering::Greater => {
+                    let intersects: bool = layout.components.iter().all(|c| components.contains(c));
+
+                    if !intersects {
+                        panic!("[ECS] Superset of Archetype requires to match every components")
+                    }
+
+                    insert_index = index + 1;
+                    inserted_order = Ordering::Greater;
+                }
             };
         }
 
-        inserted
+        // only the parent (lowest intersection) Set has the set_len property
+        let mut prev_len: usize = 0;
+        if let Some(parent) = self.layouts.get_mut(insert_index) {
+            prev_len = parent.set_len;
+
+            match inserted_order {
+                Ordering::Less => (), // don't do anything the len doesn't change
+                Ordering::Greater => parent.set_len += 1,
+                Ordering::Equal => {
+                    panic!("[ECS] invalid ordering for layout insertion at a specific index")
+                }
+            }
+        };
+
+        let set_len = match inserted_order {
+            Ordering::Less => prev_len + 1,
+            Ordering::Greater => prev_len,
+            Ordering::Equal => 1,
+        };
+
+        self.layouts.insert(
+            insert_index,
+            ArchetypeLayout {
+                components,
+                set_len,
+            },
+        );
+
+        true
     }
 }
 
@@ -57,6 +99,7 @@ impl ArchetypesManager {
 pub trait TAbstractComponentData: 'static {
     #[must_use]
     fn get_type(&self) -> TypeId;
+    fn get_name(&self) -> &'static str;
 }
 pub struct AbstractComponentData<T>
 where
@@ -70,6 +113,10 @@ where
 {
     fn get_type(&self) -> TypeId {
         TypeId::of::<T>()
+    }
+
+    fn get_name(&self) -> &'static str {
+        std::any::type_name::<T>()
     }
 }
 
@@ -93,6 +140,16 @@ impl Eq for ComponentData {}
 impl PartialEq for ComponentData {
     fn eq(&self, other: &Self) -> bool {
         self.metadata.get_type() == other.metadata.get_type()
+    }
+}
+impl Ord for ComponentData {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.metadata.get_name().cmp(other.metadata.get_name())
+    }
+}
+impl PartialOrd for ComponentData {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.metadata.get_name().cmp(other.metadata.get_name()))
     }
 }
 

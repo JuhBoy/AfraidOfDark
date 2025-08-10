@@ -1,10 +1,16 @@
+use bevy_ecs::world;
+
 use super::{
+    archetypes::ComponentData,
     components::ComponentStorage,
     ecs::ECS,
     systems::{System, SystemUpdate},
 };
-use crate::engine::ecs::my_ecs::{archetypes::ArchetypesManager, systems::{make_system, Query, QueryMut, SystemParams}};
 use crate::engine::ecs::my_ecs::utils::SparseVec;
+use crate::engine::ecs::my_ecs::{
+    archetypes::ArchetypesManager,
+    systems::{make_system, Query, QueryMut, SystemParams},
+};
 use crate::engine::ecs::my_ecs::{
     components::ComponentBufferSparseSet,
     entities::{Entity, EntityAllocator, EntityStorage},
@@ -25,6 +31,12 @@ pub struct Velocity {
 pub struct Transform(i32);
 pub struct Rigidbody2D(i32);
 pub struct BoxCollider(i32);
+
+pub struct A;
+pub struct B;
+pub struct C;
+pub struct D;
+pub struct E;
 
 #[test]
 pub fn test_entity_storage_implementation() {
@@ -214,11 +226,7 @@ pub fn test_ecs_implementation() {
     let _entity = ecs.entity_storage.create();
 
     // register one system
-    let system = make_system(
-        "the one system",
-        SystemUpdate::Update,
-        player_movement_system,
-    );
+    let system = make_system("the one system", SystemUpdate::Update, iter_test_system);
     ecs.register_system(system);
 
     // registries
@@ -268,7 +276,62 @@ pub fn test_ecs_implementation() {
     }
 }
 
-pub fn player_movement_system(params: &mut SystemParams) {
+#[test]
+pub fn test_archetypes_registers() {
+    let mut manager = ArchetypesManager::new();
+
+    const FIRST_GROUP: &[ComponentData] = &[ComponentData::new::<A>(), ComponentData::new::<B>()];
+    const SECOND_GROUP: &[ComponentData] = &[
+        ComponentData::new::<A>(),
+        ComponentData::new::<B>(),
+        ComponentData::new::<C>(),
+    ];
+    const THIRD_GROUP: &[ComponentData] = &[
+        ComponentData::new::<A>(),
+        ComponentData::new::<B>(),
+        ComponentData::new::<D>(),
+    ];
+    const FOURTH_GROUP: &[ComponentData] = &[
+        ComponentData::new::<A>(),
+        ComponentData::new::<B>(),
+        ComponentData::new::<C>(),
+        ComponentData::new::<E>(),
+    ];
+    const FIFTH_GROUP: &[ComponentData] = &[
+        ComponentData::new::<Position>(),
+        ComponentData::new::<Rigidbody2D>(),
+    ];
+
+    let second_group_inserted = manager.register(SECOND_GROUP);
+    let first_group_inserted = manager.register(FIRST_GROUP);
+    let third_group_inserted = manager.register(THIRD_GROUP);
+    let forth_group_inserted = manager.register(FOURTH_GROUP);
+    let fifth_group_inserted = manager.register(FIFTH_GROUP);
+
+    // inserted groups
+    assert!(first_group_inserted);
+    assert!(second_group_inserted);
+    assert!(forth_group_inserted);
+    assert!(fifth_group_inserted);
+
+    // rejected groups
+    assert!(!third_group_inserted);
+
+    assert_eq!(FIRST_GROUP.len(), manager.layouts[0].components.len());
+    assert_eq!(SECOND_GROUP.len(), manager.layouts[1].components.len());
+
+    assert_eq!(2, manager.layouts[0].set_len);
+    assert_eq!(1, manager.layouts[1].set_len);
+    assert_eq!(1, manager.layouts[3].set_len);
+
+    // assert group format
+    assert!(FIRST_GROUP.iter().enumerate().all(|(i, y)| { manager.layouts[0].components[i] == *y }));
+    assert!(SECOND_GROUP.iter().enumerate().all(|(i, y)| { manager.layouts[1].components[i] == *y }));
+    assert!(FOURTH_GROUP.iter().enumerate().all(|(i, y)| { manager.layouts[2].components[i] == *y }));
+    assert!(FIFTH_GROUP.iter().enumerate().all(|(i, y)| { manager.layouts[3].components[i] == *y }));
+}
+
+pub fn iter_test_system(params: &mut SystemParams) {
     // let entity = params.world.entity_storage.create();
     // let e = params
     //     .world
