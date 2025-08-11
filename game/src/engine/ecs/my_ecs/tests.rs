@@ -286,49 +286,71 @@ pub fn test_archetypes_registers() {
         ComponentData::new::<B>(),
         ComponentData::new::<C>(),
     ];
-    const THIRD_GROUP: &[ComponentData] = &[
+    const NON_INSERTED_GROUP: &[ComponentData] = &[
         ComponentData::new::<A>(),
         ComponentData::new::<B>(),
         ComponentData::new::<D>(),
     ];
-    const FOURTH_GROUP: &[ComponentData] = &[
+    const THIRD_GROUP: &[ComponentData] = &[
         ComponentData::new::<A>(),
         ComponentData::new::<B>(),
         ComponentData::new::<C>(),
         ComponentData::new::<E>(),
     ];
-    const FIFTH_GROUP: &[ComponentData] = &[
+    const FOURTH_GROUP: &[ComponentData] = &[
         ComponentData::new::<Position>(),
         ComponentData::new::<Rigidbody2D>(),
     ];
+    const FIFTH_GROUP: &[ComponentData] = &[
+        ComponentData::new::<Position>(),
+        ComponentData::new::<Rigidbody2D>(),
+        ComponentData::new::<Velocity>(),
+    ];
 
     let second_group_inserted = manager.register(SECOND_GROUP);
-    let first_group_inserted = manager.register(FIRST_GROUP);
     let third_group_inserted = manager.register(THIRD_GROUP);
-    let forth_group_inserted = manager.register(FOURTH_GROUP);
+    let first_group_inserted = manager.register(FIRST_GROUP);
+    let fourth_group_inserted = manager.register(FOURTH_GROUP);
     let fifth_group_inserted = manager.register(FIFTH_GROUP);
+    let fail_group_inserted = manager.register(NON_INSERTED_GROUP);
 
     // inserted groups
     assert!(first_group_inserted);
     assert!(second_group_inserted);
-    assert!(forth_group_inserted);
+    assert!(third_group_inserted);
+    assert!(fourth_group_inserted);
     assert!(fifth_group_inserted);
 
     // rejected groups
-    assert!(!third_group_inserted);
+    assert!(!fail_group_inserted);
 
     assert_eq!(FIRST_GROUP.len(), manager.layouts[0].components.len());
     assert_eq!(SECOND_GROUP.len(), manager.layouts[1].components.len());
 
-    assert_eq!(2, manager.layouts[0].set_len);
+    // parenting
+    assert_eq!(3, manager.layouts[0].set_len);
     assert_eq!(1, manager.layouts[1].set_len);
-    assert_eq!(1, manager.layouts[3].set_len);
+    assert_eq!(1, manager.layouts[2].set_len);
+    assert_eq!(2, manager.layouts[3].set_len);
+    assert_eq!(1, manager.layouts[4].set_len);
 
-    // assert group format
-    assert!(FIRST_GROUP.iter().enumerate().all(|(i, y)| { manager.layouts[0].components[i] == *y }));
-    assert!(SECOND_GROUP.iter().enumerate().all(|(i, y)| { manager.layouts[1].components[i] == *y }));
-    assert!(FOURTH_GROUP.iter().enumerate().all(|(i, y)| { manager.layouts[2].components[i] == *y }));
-    assert!(FIFTH_GROUP.iter().enumerate().all(|(i, y)| { manager.layouts[3].components[i] == *y }));
+    // assert group order
+    assert!(FIRST_GROUP
+        .iter()
+        .enumerate()
+        .all(|(i, y)| { manager.layouts[0].components[i] == *y }));
+    assert!(SECOND_GROUP
+        .iter()
+        .enumerate()
+        .all(|(i, y)| { manager.layouts[1].components[i] == *y }));
+    assert!(THIRD_GROUP
+        .iter()
+        .enumerate()
+        .all(|(i, y)| { manager.layouts[2].components[i] == *y }));
+    assert!(FOURTH_GROUP
+        .iter()
+        .enumerate()
+        .all(|(i, y)| { manager.layouts[3].components[i] == *y }));
 }
 
 pub fn iter_test_system(params: &mut SystemParams) {

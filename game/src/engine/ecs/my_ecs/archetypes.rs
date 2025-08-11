@@ -25,8 +25,8 @@ impl ArchetypesManager {
 
     #[must_use]
     pub fn register(&mut self, components: &'static [ComponentData]) -> bool {
+        let mut parent_index: Option<usize> = None;
         let mut insert_index: usize = self.layouts.len();
-        let mut inserted_order: Ordering = Ordering::Equal;
 
         for (index, layout) in self.layouts.iter().enumerate() {
             // if the components are completly different => all good !
@@ -42,8 +42,12 @@ impl ArchetypesManager {
                         println!("[ECS] Subset of Archetype cannot varies in type")
                     }
 
+                    if parent_index.is_none() {
+                        parent_index = Some(index);
+                    }
+
                     insert_index = index;
-                    inserted_order = Ordering::Less;
+                    break;
                 }
                 Ordering::Equal => {
                     // they are equals but intersects, we can't accept it as a sub/super Set
@@ -56,30 +60,29 @@ impl ArchetypesManager {
                         panic!("[ECS] Superset of Archetype requires to match every components")
                     }
 
+                    if parent_index.is_none() {
+                        parent_index = Some(index);
+                    }
+
                     insert_index = index + 1;
-                    inserted_order = Ordering::Greater;
                 }
             };
         }
 
-        // only the parent (lowest intersection) Set has the set_len property
-        let mut prev_len: usize = 0;
-        if let Some(parent) = self.layouts.get_mut(insert_index) {
-            prev_len = parent.set_len;
+        // only the parent (lowest components length) has the set_len property
+        let mut set_len: usize = 1;
+        if let Some(parent_id) = parent_index {
+            let parent = self.layouts.get_mut(parent_id).unwrap();
 
-            match inserted_order {
-                Ordering::Less => (), // don't do anything the len doesn't change
-                Ordering::Greater => parent.set_len += 1,
+            match insert_index.cmp(&parent_id) {
+                Ordering::Less => panic!("[ECS] invalid insertion"),
+                Ordering::Greater => parent.set_len += 1, // increase the parent set
                 Ordering::Equal => {
-                    panic!("[ECS] invalid ordering for layout insertion at a specific index")
+                    // replace the current parent
+                    set_len = parent.set_len + 1;
+                    parent.set_len = 1;
                 }
             }
-        };
-
-        let set_len = match inserted_order {
-            Ordering::Less => prev_len + 1,
-            Ordering::Greater => prev_len,
-            Ordering::Equal => 1,
         };
 
         self.layouts.insert(
