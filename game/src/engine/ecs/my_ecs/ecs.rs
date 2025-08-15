@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use crate::engine::ecs::my_ecs::archetypes::{
     ArchetypeDefinition, ArchetypesManager, ComponentData,
 };
-use crate::engine::ecs::my_ecs::components::ComponentStorage;
+use crate::engine::ecs::my_ecs::components::{ComponentMetaData, ComponentStorage};
 use crate::engine::ecs::my_ecs::entities::{Entity, EntityStorage};
 use crate::engine::ecs::my_ecs::systems::{System, SystemParams, TSystem};
 
@@ -36,7 +36,7 @@ impl ECS {
         self.update_systems.push(system);
     }
 
-    pub fn allocate_storage<T>(&mut self) -> bool
+    pub fn allocate_storage<T>(&mut self) -> Option<ComponentMetaData>
     where
         T: 'static,
     {
@@ -59,5 +59,10 @@ impl ECS {
         let success: bool = manager.register(components);
 
         success
+    }
+
+    pub fn flush_archetypes(&mut self) -> usize {
+        let flushed = self.archetypes.borrow_mut().flush_archetypes(&mut self.component_storage);
+        flushed
     }
 }

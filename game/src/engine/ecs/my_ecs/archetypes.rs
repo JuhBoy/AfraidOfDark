@@ -1,6 +1,10 @@
-use std::{any::TypeId, cmp::Ordering, marker::PhantomData};
+use std::{any::TypeId, cmp::Ordering, marker::PhantomData, ops::Range};
 
-use crate::engine::ecs::my_ecs::systems::TQuery;
+use crate::engine::ecs::my_ecs::{
+    components::{ComponentMetaData, ComponentStorage},
+    systems::TQuery,
+    utils::GroupMask,
+};
 
 // Manager =======================
 //
@@ -8,19 +12,95 @@ pub struct ArchetypeLayout {
     pub components: &'static [ComponentData],
     pub set_len: usize,
 }
+pub struct Archetype {
+    pub groups_mask: GroupMask, 
+    pub groups: Vec<RuntimeGroup>,
+}
+impl Archetype {
+    pub fn match_mask(&self, mask: GroupMask) -> bool {
+        self.groups_mask.is_match(&mask)
+    }
+
+    pub fn groups_len(&self) -> usize {
+        self.groups.len()
+    }
+}
+pub struct RuntimeGroup {
+    mask: GroupMask, // components storage index included in this group
+    len: u32, // len of entities included in this group
+}
+impl Default for RuntimeGroup {
+    fn default() -> Self {
+        Self {
+            mask: GroupMask::new(None),
+            len: 0,
+        }
+    }
+}
 pub struct ArchetypesManager {
     pub layouts: Vec<ArchetypeLayout>,
+    pub archetypes: Vec<Archetype>,
 }
+
+impl ArchetypeLayout {}
 
 impl ArchetypesManager {
     pub fn new() -> Self {
-        Self { layouts: vec![] }
+        Self {
+            layouts: vec![],
+            archetypes: vec![],
+        }
     }
 
     pub fn get_archetyp<Q>()
     where
         Q: TQuery,
     {
+    }
+
+    #[must_use]
+    pub fn flush_archetypes(&mut self, component_storage: &mut ComponentStorage) -> usize {
+        assert_eq!(self.archetypes.len(), 0);
+
+        let mut i = 0;
+
+        while i < self.layouts.len() {
+            let archetype_length = self.layouts[i].set_len;
+            let mut groups: Vec<RuntimeGroup> = Vec::with_capacity(archetype_length);
+            let mut archetype_mask = GroupMask::new(None);
+
+            for j in 0..archetype_length {
+                let archetype_id = i + j;
+                let current = &mut self.layouts[archetype_id];
+                let mut group = RuntimeGroup::default();
+
+                current.components.iter().for_each(|f| {
+                    let meta = f.metadata.allocate_buffer(component_storage);
+
+                    if let Some(group_meta) = meta {
+                        assert!(group_meta.index <= GroupMask::max_bit_shift());
+
+                        let group_id: u8 = group_meta.index as u8;
+
+                        group.mask.set(group_id);
+                        archetype_mask.set(group_id);
+                    } else {
+                        panic!("[ECS] couldn't find metadata for group");
+                    }
+                });
+
+                groups.push(group);
+            }
+
+            i += archetype_length;
+
+            self.archetypes.push(Archetype {
+                groups,
+                groups_mask: archetype_mask,
+            });
+        }
+
+        self.archetypes.len()
     }
 
     #[must_use]
@@ -103,6 +183,7 @@ pub trait TAbstractComponentData: 'static {
     #[must_use]
     fn get_type(&self) -> TypeId;
     fn get_name(&self) -> &'static str;
+    fn allocate_buffer(&self, storage: &mut ComponentStorage) -> Option<ComponentMetaData>;
 }
 pub struct AbstractComponentData<T>
 where
@@ -120,6 +201,10 @@ where
 
     fn get_name(&self) -> &'static str {
         std::any::type_name::<T>()
+    }
+
+    fn allocate_buffer(&self, storage: &mut ComponentStorage) -> Option<ComponentMetaData> {
+        storage.allocate::<T>()
     }
 }
 

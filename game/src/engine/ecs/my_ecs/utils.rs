@@ -252,3 +252,59 @@ where
         self.dense_set.clear();
     }
 }
+
+
+/// ============================
+/// Masks ----------------------
+/// ============================
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GroupMask {
+    mask: u64,
+}
+
+impl GroupMask {
+    pub const fn max_bit_shift() -> usize { 63 }
+
+    pub fn new(base: Option<u64>) -> Self {
+        Self {
+            mask: base.unwrap_or(0),
+        }
+    }
+
+    pub fn get_raw(&self) -> u64 {
+        self.mask
+    }
+    
+    pub fn clear(&mut self) -> u64 {
+        self.mask = 0;
+        self.mask
+    }
+
+    pub fn or(&mut self, value: u64) {
+       self.mask |= value; 
+    }
+
+    pub fn and(&mut self, value: u64) {
+        self.mask &= value;
+    }
+
+    pub fn set(&mut self, index: u8) {
+        self.mask |= 1 << index;
+    }
+
+    pub fn unset(&mut self, index: u8) {
+        self.mask ^= 1 << index;
+    }
+
+    pub fn is_set(&mut self, index: u8) -> bool {
+        self.mask & (1 << index) != 0
+    }
+
+    pub fn is_match(&self, other: &GroupMask) -> bool {
+        self.mask == other.mask
+    }
+
+    pub fn intersects(&self, other: &GroupMask) -> bool {
+        self.mask & other.mask != 0
+    }
+}

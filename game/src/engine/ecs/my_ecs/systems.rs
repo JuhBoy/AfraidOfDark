@@ -1,4 +1,4 @@
-use crate::engine::ecs::my_ecs::components::{ComponentBufferSparseSet, StorageMetaData};
+use crate::engine::ecs::my_ecs::components::{ComponentBufferSparseSet, ComponentMetaData};
 use crate::engine::ecs::my_ecs::ecs::ECS;
 use crate::engine::ecs::my_ecs::entities;
 use atomic_refcell::{AtomicRef, AtomicRefMut};
@@ -40,7 +40,7 @@ pub trait TQuery: 'static {
 }
 
 pub struct StorageView<'a, T> {
-    store: StorageMetaData,
+    store: ComponentMetaData,
     _phantom: PhantomData<&'a [T]>,
 }
 

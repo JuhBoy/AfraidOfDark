@@ -1,7 +1,7 @@
 use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
 
 use crate::engine::ecs::my_ecs::entities::Entity;
-use crate::engine::ecs::my_ecs::utils::{ByteBuffer, SparseVec, SparseView, ID};
+use crate::engine::ecs::my_ecs::utils::{ByteBuffer, GroupMask, SparseVec, SparseView, ID};
 use std::any::TypeId;
 use std::cell::{RefCell, RefMut};
 use std::collections::hash_map::Entry;
@@ -75,7 +75,7 @@ impl ComponentBufferSparseSet {
         self.entities.has(ett.id(), ett.version())
     }
 
-    pub fn get<'a, T>(&'a self, ett: Entity) -> Option<&'a T> {
+    pub fn get<T>(&self, ett: Entity) -> Option<&T> {
         let Some(view) = self.entities.get_unchecked(ett.id()) else {
             return None;
         };
@@ -97,12 +97,13 @@ impl ComponentBufferSparseSet {
 /// ============================
 
 #[derive(Clone, Copy)]
-pub struct StorageMetaData {
+pub struct ComponentMetaData {
     pub index: usize,
+    pub mask: GroupMask, // all the group containing this component
 }
 
 pub struct ComponentStorage {
-    pub(crate) storages_index_by_type_id: HashMap<TypeId, usize>,
+    pub(crate) storages_index_by_type_id: HashMap<TypeId, ComponentMetaData>,
     pub(crate) storages: Vec<AtomicRefCell<ComponentBufferSparseSet>>,
 }
 impl ComponentStorage {
@@ -113,13 +114,13 @@ impl ComponentStorage {
         }
     }
 
-    pub fn allocate<T>(&mut self) -> bool
+    pub fn allocate<T>(&mut self) -> Option<ComponentMetaData>
     where
         T: 'static,
     {
         let component_type_id = TypeId::of::<T>();
         let Entry::Vacant(entry) = self.storages_index_by_type_id.entry(component_type_id) else {
-            return false;
+            return Some(self.storages_index_by_type_id[&component_type_id]);
         };
 
         let storage = ComponentBufferSparseSet {
@@ -129,10 +130,13 @@ impl ComponentStorage {
         };
         self.storages.push(AtomicRefCell::new(storage));
 
-        let index = self.storages.len() - 1;
-        entry.insert(index);
+        let metadata = ComponentMetaData {
+            index: self.storages.len() - 1,
+            mask: GroupMask::new(None),
+        };
+        entry.insert(metadata);
 
-        true
+        Some(metadata)
     }
 
     pub fn add_component<T>(&mut self, entity: Entity, comp: T) -> bool
@@ -144,8 +148,8 @@ impl ComponentStorage {
             return false;
         }
 
-        let id = self.storages_index_by_type_id[&search_type];
-        let store = &mut self.storages[id].borrow_mut();
+        let metadata = self.storages_index_by_type_id[&search_type];
+        let store = &mut self.storages[metadata.index].borrow_mut();
 
         store.insert::<T>(entity, comp)
     }
@@ -155,7 +159,7 @@ impl ComponentStorage {
         T: 'static,
     {
         let component_type_id = TypeId::of::<T>();
-        self.storages[self.storages_index_by_type_id[&component_type_id]].borrow()
+        self.storages[self.storages_index_by_type_id[&component_type_id].index].borrow()
     }
 
     pub fn get_storage_mut<T>(&self) -> AtomicRefMut<ComponentBufferSparseSet>
@@ -163,7 +167,7 @@ impl ComponentStorage {
         T: 'static,
     {
         let component_type_id = TypeId::of::<T>();
-        self.storages[self.storages_index_by_type_id[&component_type_id]].borrow_mut()
+        self.storages[self.storages_index_by_type_id[&component_type_id].index].borrow_mut()
     }
 
     pub fn get_storage_mut_by_id(&self, index: usize) -> AtomicRefMut<ComponentBufferSparseSet> {
@@ -174,13 +178,11 @@ impl ComponentStorage {
         self.storages[index].borrow()
     }
 
-    pub fn get_statage_metadata<T>(&self) -> StorageMetaData
+    pub fn get_statage_metadata<T>(&self) -> ComponentMetaData
     where
         T: 'static,
     {
         let component_type_id = TypeId::of::<T>();
-        let index = self.storages_index_by_type_id[&component_type_id];
-
-        StorageMetaData { index }
+        self.storages_index_by_type_id[&component_type_id]
     }
 }

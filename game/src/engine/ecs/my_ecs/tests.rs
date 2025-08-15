@@ -6,7 +6,7 @@ use super::{
     ecs::ECS,
     systems::{System, SystemUpdate},
 };
-use crate::engine::ecs::my_ecs::utils::SparseVec;
+use crate::engine::ecs::my_ecs::utils::{GroupMask, SparseVec};
 use crate::engine::ecs::my_ecs::{
     archetypes::ArchetypesManager,
     systems::{make_system, Query, QueryMut, SystemParams},
@@ -353,15 +353,53 @@ pub fn test_archetypes_registers() {
         .all(|(i, y)| { manager.layouts[3].components[i] == *y }));
 }
 
-pub fn iter_test_system(params: &mut SystemParams) {
-    // let entity = params.world.entity_storage.create();
-    // let e = params
-    //     .world
-    //     .add_component::<Velocity>(entity, Velocity { x: 999f32, y: 0f32 });
-    // if !e {
-    //     panic!("couldn't add velocity to entity");
-    // }
+#[test]
+pub fn should_flush_archetypes() {
+    let mut manager = ArchetypesManager::new();
+    let mut component_storage = ComponentStorage::new(1000);
 
+    const FIRST_GROUP: &[ComponentData] = &[ComponentData::new::<A>(), ComponentData::new::<B>()];
+    const SECOND_GROUP: &[ComponentData] = &[
+        ComponentData::new::<A>(),
+        ComponentData::new::<B>(),
+        ComponentData::new::<C>(),
+    ];
+    const THIRD_GROUP: &[ComponentData] =
+        &[ComponentData::new::<D>(), ComponentData::new::<Position>()];
+    const FOUTH_GROUP: &[ComponentData] = &[
+        ComponentData::new::<A>(),
+        ComponentData::new::<B>(),
+        ComponentData::new::<C>(),
+        ComponentData::new::<E>(),
+    ];
+
+    let first_group_inserted = manager.register(FIRST_GROUP);
+    let second_group_inserted = manager.register(SECOND_GROUP);
+    let third_group_inserted = manager.register(THIRD_GROUP);
+    let fourth_group_inserted = manager.register(FOUTH_GROUP);
+
+    assert!(first_group_inserted);
+    assert!(second_group_inserted);
+    assert!(third_group_inserted);
+    assert!(fourth_group_inserted);
+
+    let inserted_len = manager.flush_archetypes(&mut component_storage);
+
+    assert_eq!(2, inserted_len);
+    assert_eq!(3, manager.archetypes[0].groups_len());
+    assert_eq!(1, manager.archetypes[1].groups_len());
+
+    // Check if first archetype contains storage A, B, C, E (store index are 0, 1, 2, 4)
+    // E is storage_id 4 because layouts are re-ordered by archetypes
+    let val = GroupMask::new(Some(1 | 2 | (1 << 2) | (1 << 3)));
+    assert_eq!(val, manager.archetypes[0].groups_mask);
+
+    // Check if 2nd archetype contains storage D, E (store index are 5, 6)
+    let val = GroupMask::new(Some((1 << 4) | (1 << 5)));
+    assert_eq!(val, manager.archetypes[1].groups_mask);
+}
+
+pub fn iter_test_system(params: &mut SystemParams) {
     let mut query: Query<(Position, Velocity)> = Query::new(params.world);
 
     for (pos, vel) in query.iter() {
