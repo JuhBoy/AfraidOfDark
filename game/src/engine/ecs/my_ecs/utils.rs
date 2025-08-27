@@ -253,7 +253,6 @@ where
     }
 }
 
-
 /// ============================
 /// Masks ----------------------
 /// ============================
@@ -263,7 +262,9 @@ pub struct GroupMask {
 }
 
 impl GroupMask {
-    pub const fn max_bit_shift() -> usize { 63 }
+    pub const fn max_bit_shift() -> usize {
+        63
+    }
 
     pub fn new(base: Option<u64>) -> Self {
         Self {
@@ -274,14 +275,14 @@ impl GroupMask {
     pub fn get_raw(&self) -> u64 {
         self.mask
     }
-    
+
     pub fn clear(&mut self) -> u64 {
         self.mask = 0;
         self.mask
     }
 
     pub fn or(&mut self, value: u64) {
-       self.mask |= value; 
+        self.mask |= value;
     }
 
     pub fn and(&mut self, value: u64) {
@@ -306,5 +307,9 @@ impl GroupMask {
 
     pub fn intersects(&self, other: &GroupMask) -> bool {
         self.mask & other.mask != 0
+    }
+
+    pub fn is_superset_of(&self, other: &GroupMask) -> bool {
+        (self.mask & other.mask) == other.mask
     }
 }

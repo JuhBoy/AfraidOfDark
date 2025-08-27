@@ -1,10 +1,12 @@
-use std::{any::TypeId, cmp::Ordering, marker::PhantomData, ops::Range};
+use std::{any::TypeId, cmp::Ordering, marker::PhantomData};
 
 use crate::engine::ecs::my_ecs::{
     components::{ComponentMetaData, ComponentStorage},
     systems::TQuery,
     utils::GroupMask,
 };
+
+use super::entities::Entity;
 
 // Manager =======================
 //
@@ -13,7 +15,7 @@ pub struct ArchetypeLayout {
     pub set_len: usize,
 }
 pub struct Archetype {
-    pub groups_mask: GroupMask, 
+    pub groups_mask: GroupMask,
     pub groups: Vec<RuntimeGroup>,
 }
 impl Archetype {
@@ -21,13 +23,19 @@ impl Archetype {
         self.groups_mask.is_match(&mask)
     }
 
+    pub fn contains(&self, mask: &GroupMask) -> bool {
+        let is_superset: bool = self.groups_mask.is_superset_of(mask);
+        is_superset
+    }
+
     pub fn groups_len(&self) -> usize {
         self.groups.len()
     }
 }
+#[derive(Debug, Clone, Copy)]
 pub struct RuntimeGroup {
-    mask: GroupMask, // components storage index included in this group
-    len: u32, // len of entities included in this group
+    pub mask: GroupMask, // components storage index included in this group
+    pub len: u32,        // len of entities included in this group
 }
 impl Default for RuntimeGroup {
     fn default() -> Self {
@@ -52,10 +60,27 @@ impl ArchetypesManager {
         }
     }
 
-    pub fn get_archetyp<Q>()
-    where
-        Q: TQuery,
-    {
+    pub fn group(&mut self, entity: Entity, components: &[ComponentData]) -> Result<GroupMask, &'static str> {
+        Ok(GroupMask::new(None))
+    }
+
+    #[must_use]
+    pub fn find_group(&self, mask: &GroupMask) -> Option<RuntimeGroup> {
+        for archetype in self.archetypes.iter() {
+            if !archetype.contains(mask) {
+                continue;
+            }
+
+            for group in archetype.groups.iter() {
+                if group.mask.eq(mask) {
+                    continue;
+                }
+
+                return Some(*group);
+            }
+        }
+
+        None
     }
 
     #[must_use]

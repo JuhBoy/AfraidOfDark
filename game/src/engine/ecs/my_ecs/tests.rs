@@ -6,15 +6,17 @@ use super::{
     ecs::ECS,
     systems::{System, SystemUpdate},
 };
-use crate::engine::ecs::my_ecs::utils::{GroupMask, SparseVec};
 use crate::engine::ecs::my_ecs::{
-    archetypes::ArchetypesManager,
-    systems::{make_system, Query, QueryMut, SystemParams},
+    archetypes::ArchetypesManager, ecs::EntityCreateResult, systems::{make_system, Query, QueryMut, SystemParams}
 };
 use crate::engine::ecs::my_ecs::{
     components::ComponentBufferSparseSet,
     entities::{Entity, EntityAllocator, EntityStorage},
     utils::{ByteBuffer, SparseSet},
+};
+use crate::engine::ecs::my_ecs::{
+    ecs::EntityWithGroup,
+    utils::{GroupMask, SparseVec},
 };
 use std::{any::TypeId, cell::RefCell, time::SystemTime};
 
@@ -397,6 +399,64 @@ pub fn should_flush_archetypes() {
     // Check if 2nd archetype contains storage D, E (store index are 5, 6)
     let val = GroupMask::new(Some((1 << 4) | (1 << 5)));
     assert_eq!(val, manager.archetypes[1].groups_mask);
+}
+
+#[test]
+pub fn should_find_group_for_queries() {
+    let mut ecs = ECS {
+        entity_storage: EntityStorage::new(2000),
+        component_storage: ComponentStorage::new(100),
+        update_systems: vec![],
+        archetypes: RefCell::new(ArchetypesManager::new()),
+    };
+
+    const FIRST_GROUP: &[ComponentData] = &[ComponentData::new::<A>(), ComponentData::new::<B>()];
+    const SECOND_GROUP: &[ComponentData] = &[
+        ComponentData::new::<A>(),
+        ComponentData::new::<B>(),
+        ComponentData::new::<C>(),
+    ];
+    const THIRD_GROUP: &[ComponentData] =
+        &[ComponentData::new::<D>(), ComponentData::new::<Position>()];
+    const FOUTH_GROUP: &[ComponentData] = &[
+        ComponentData::new::<A>(),
+        ComponentData::new::<B>(),
+        ComponentData::new::<C>(),
+        ComponentData::new::<E>(),
+    ];
+
+    // inserts all archetypes & groups then flush to ecs world 
+    {
+        let mut manager = ecs.archetypes.borrow_mut();
+        let _ = manager.register(FIRST_GROUP);
+        let _ = manager.register(SECOND_GROUP);
+        let _ = manager.register(THIRD_GROUP);
+        let _ = manager.register(FOUTH_GROUP);
+
+        let flushed = manager.flush_archetypes(&mut ecs.component_storage);
+        assert_eq!(2, flushed);
+    }
+
+    // insert 10 entities to ecs world
+    for _i in 0..10 {
+        let result: EntityCreateResult = ecs.create::<(A, B)>();
+        assert!(matches!(result, EntityCreateResult::WithGroup(_)));
+    }
+
+    // assert a group has been found for this query
+    let query: Query<(A, B)> = Query::new(&ecs);
+    let iter = query.iter();
+    assert!(iter.use_group);
+
+    // assert the entity count is ok
+    // @todo:
+    // ⚠️⚠️⚠️Warning ⚠️⚠️⚠️ ==========
+    // this is not working yet, the group must intersects the current group layout and build
+    // contiguous topology for those entities
+    // ⚠️⚠️⚠️Warning ⚠️⚠️⚠️ 
+    //
+    let iterated_entities = iter.fold(0, |acc, (_a, _b)| acc + 1);
+    assert_eq!(10, iterated_entities);
 }
 
 pub fn iter_test_system(params: &mut SystemParams) {

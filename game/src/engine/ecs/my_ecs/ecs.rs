@@ -7,6 +7,18 @@ use crate::engine::ecs::my_ecs::components::{ComponentMetaData, ComponentStorage
 use crate::engine::ecs::my_ecs::entities::{Entity, EntityStorage};
 use crate::engine::ecs::my_ecs::systems::{System, SystemParams, TSystem};
 
+use super::utils::GroupMask;
+
+#[derive(PartialEq)]
+pub enum EntityCreateResult {
+    WithGroup(EntityWithGroup),
+    WithoutGroup(Entity),
+}
+#[derive(PartialEq)]
+pub struct EntityWithGroup {
+    pub group: GroupMask,
+    pub entity: Entity,
+}
 pub struct ECS {
     pub entity_storage: EntityStorage,
     pub component_storage: ComponentStorage,
@@ -62,7 +74,31 @@ impl ECS {
     }
 
     pub fn flush_archetypes(&mut self) -> usize {
-        let flushed = self.archetypes.borrow_mut().flush_archetypes(&mut self.component_storage);
+        let flushed = self
+            .archetypes
+            .borrow_mut()
+            .flush_archetypes(&mut self.component_storage);
+
         flushed
+    }
+
+    pub fn create<A>(&mut self) -> EntityCreateResult
+    where
+        A: ArchetypeDefinition,
+    {
+        let entity = self.entity_storage.create();
+        let components: &[ComponentData] = A::COMPONENTS;
+
+        // now try to push this entity in a group if possible !
+        let mut am = self.archetypes.borrow_mut();
+        let grouped = am.group(entity, components);
+
+        match grouped {
+            Ok(group) => EntityCreateResult::WithGroup(EntityWithGroup {
+                group,
+                entity,
+            }),
+            Err(_) => EntityCreateResult::WithoutGroup(entity),
+        }
     }
 }
