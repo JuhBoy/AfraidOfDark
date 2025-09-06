@@ -7,7 +7,9 @@ use super::{
     systems::{System, SystemUpdate},
 };
 use crate::engine::ecs::my_ecs::{
-    archetypes::ArchetypesManager, ecs::EntityCreateResult, systems::{make_system, Query, QueryMut, SystemParams}
+    archetypes::ArchetypesManager,
+    ecs::EntityCreateResult,
+    systems::{make_system, Query, QueryMut, SystemParams},
 };
 use crate::engine::ecs::my_ecs::{
     components::ComponentBufferSparseSet,
@@ -425,7 +427,7 @@ pub fn should_find_group_for_queries() {
         ComponentData::new::<E>(),
     ];
 
-    // inserts all archetypes & groups then flush to ecs world 
+    // inserts all archetypes & groups then flush to ecs world
     {
         let mut manager = ecs.archetypes.borrow_mut();
         let _ = manager.register(FIRST_GROUP);
@@ -439,21 +441,38 @@ pub fn should_find_group_for_queries() {
 
     // insert 10 entities to ecs world
     for _i in 0..10 {
-        let result: EntityCreateResult = ecs.create::<(A, B)>();
+        let result: EntityCreateResult = ecs.create((A {}, B {}));
         assert!(matches!(result, EntityCreateResult::WithGroup(_)));
+
+        match result {
+            EntityCreateResult::WithGroup(grouped) => {
+                // entity group
+                let ett_group_msk = grouped.group;
+
+                // mask of the target group
+                let meta_a = ecs.component_storage.get_statage_metadata::<A>();
+                let meta_b = ecs.component_storage.get_statage_metadata::<B>();
+                let group_msk = GroupMask::new(Some(
+                    (1 << meta_a.index as u64) | (1 << meta_b.index as u64),
+                ));
+
+                assert!(group_msk.is_match(&ett_group_msk));
+            }
+            _ => panic!(),
+        }
     }
 
     // assert a group has been found for this query
     let query: Query<(A, B)> = Query::new(&ecs);
     let iter = query.iter();
-    assert!(iter.use_group);
+    assert!(iter.group.is_some());
 
     // assert the entity count is ok
     // @todo:
     // ⚠️⚠️⚠️Warning ⚠️⚠️⚠️ ==========
     // this is not working yet, the group must intersects the current group layout and build
     // contiguous topology for those entities
-    // ⚠️⚠️⚠️Warning ⚠️⚠️⚠️ 
+    // ⚠️⚠️⚠️Warning ⚠️⚠️⚠️
     //
     let iterated_entities = iter.fold(0, |acc, (_a, _b)| acc + 1);
     assert_eq!(10, iterated_entities);

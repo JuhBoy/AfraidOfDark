@@ -1,8 +1,9 @@
+use std::ops::Range;
+use std::slice::Iter;
 use std::{any::TypeId, cmp::Ordering, marker::PhantomData};
 
 use crate::engine::ecs::my_ecs::{
     components::{ComponentMetaData, ComponentStorage},
-    systems::TQuery,
     utils::GroupMask,
 };
 
@@ -60,8 +61,47 @@ impl ArchetypesManager {
         }
     }
 
-    pub fn group(&mut self, entity: Entity, components: &[ComponentData]) -> Result<GroupMask, &'static str> {
-        Ok(GroupMask::new(None))
+    pub fn get_supersets_slice(
+        &mut self,
+        arch_id: usize,
+        group_mask: &GroupMask,
+    ) -> &mut [RuntimeGroup] {
+        let archetype = self
+            .archetypes
+            .get(arch_id)
+            .expect("archetype index is invalid");
+        let mut start = 0;
+        let group_len = archetype.groups_len();
+
+        for (i, group) in archetype.groups.iter().enumerate() {
+            if !group.mask.is_match(group_mask) {
+                continue;
+            }
+
+            start = i;
+            break;
+        }
+
+        &mut self.archetypes[arch_id].groups[start..group_len]
+    }
+
+    #[must_use]
+    pub fn find_archetype_with_group(&self, mask: &GroupMask) -> Option<(usize, RuntimeGroup)> {
+        for (index, archetype) in self.archetypes.iter().enumerate() {
+            if !archetype.contains(mask) {
+                continue;
+            }
+
+            for group in archetype.groups.iter() {
+                if !group.mask.is_match(mask) {
+                    continue;
+                }
+
+                return Some((index, *group));
+            }
+        }
+
+        None
     }
 
     #[must_use]
@@ -205,10 +245,11 @@ impl ArchetypesManager {
 // Abstract Definition =======================
 //
 pub trait TAbstractComponentData: 'static {
-    #[must_use]
     fn get_type(&self) -> TypeId;
     fn get_name(&self) -> &'static str;
     fn allocate_buffer(&self, storage: &mut ComponentStorage) -> Option<ComponentMetaData>;
+    fn get_storage_metadata(&self, storage: &ComponentStorage) -> ComponentMetaData;
+    fn add_component(&mut self, storage: &ComponentStorage) -> bool;
 }
 pub struct AbstractComponentData<T>
 where
@@ -230,6 +271,15 @@ where
 
     fn allocate_buffer(&self, storage: &mut ComponentStorage) -> Option<ComponentMetaData> {
         storage.allocate::<T>()
+    }
+
+    fn get_storage_metadata(&self, storage: &ComponentStorage) -> ComponentMetaData {
+        storage.get_statage_metadata::<T>()
+    }
+
+    fn add_component(&mut self, _storage: &ComponentStorage) -> bool {
+        // storage.add_component::<T>(entity, );
+        true
     }
 }
 
@@ -307,4 +357,65 @@ where
         ComponentData::new::<C>(),
         ComponentData::new::<D>(),
     ];
+}
+
+pub trait ComponentSet {
+    #[must_use]
+    fn insert(entity: &Entity, storage: &mut ComponentStorage, comps: Self) -> bool;
+    fn group_mask(storage: &ComponentStorage) -> GroupMask;
+    fn group(
+        entity: &Entity,
+        comps: Self,
+        archetypes: &mut ArchetypesManager,
+        storage: &mut ComponentStorage,
+    ) -> bool;
+}
+
+impl<A, B> ComponentSet for (A, B)
+where
+    A: 'static,
+    B: 'static,
+{
+    fn insert(entity: &Entity, storage: &mut ComponentStorage, comps: Self) -> bool {
+        let added_a = storage.add_component(*entity, comps.0);
+        if !added_a {
+            return false;
+        }
+
+        let added_b = storage.add_component(*entity, comps.1);
+
+        added_a && added_b
+    }
+
+    fn group_mask(storage: &ComponentStorage) -> GroupMask {
+        let mut group_mask = GroupMask::new(None);
+
+        let metadata_a = storage.get_statage_metadata::<A>();
+        group_mask.set(metadata_a.index as u8);
+
+        let metadata_b = storage.get_statage_metadata::<B>();
+        group_mask.set(metadata_b.index as u8);
+
+        group_mask
+    }
+
+    fn group(
+        entity: &Entity,
+        comps: Self,
+        archetypes: &mut ArchetypesManager,
+        storage: &mut ComponentStorage,
+    ) -> bool {
+        // here we should have already inserted the entity and added the corresponding sotrages
+        // slots.
+
+        let group_mask = Self::group_mask(storage);
+        let ett_archetype = archetypes.find_archetype_with_group(&group_mask);
+        if ett_archetype.is_none() {
+            panic!("this is very bad");
+        }
+
+        // let archetypes = archetypes.
+
+        true
+    }
 }

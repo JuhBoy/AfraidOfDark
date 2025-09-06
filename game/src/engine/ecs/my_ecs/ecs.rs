@@ -1,4 +1,6 @@
+use std::any::TypeId;
 use std::cell::RefCell;
+use std::string;
 
 use crate::engine::ecs::my_ecs::archetypes::{
     ArchetypeDefinition, ArchetypesManager, ComponentData,
@@ -7,10 +9,12 @@ use crate::engine::ecs::my_ecs::components::{ComponentMetaData, ComponentStorage
 use crate::engine::ecs::my_ecs::entities::{Entity, EntityStorage};
 use crate::engine::ecs::my_ecs::systems::{System, SystemParams, TSystem};
 
+use super::archetypes::ComponentSet;
 use super::utils::GroupMask;
 
 #[derive(PartialEq)]
 pub enum EntityCreateResult {
+    Failed(String),
     WithGroup(EntityWithGroup),
     WithoutGroup(Entity),
 }
@@ -82,23 +86,44 @@ impl ECS {
         flushed
     }
 
-    pub fn create<A>(&mut self) -> EntityCreateResult
+    pub fn create<A>(&mut self, comps: A) -> EntityCreateResult
     where
-        A: ArchetypeDefinition,
+        A: ComponentSet + 'static,
     {
         let entity = self.entity_storage.create();
-        let components: &[ComponentData] = A::COMPONENTS;
+        // let components: &[ComponentData] = A::COMPONENTS;
+
+        // ----
+        // @todo: working here probably needs to rework everything after this point /!\
+        let inserted = A::insert(&entity, &mut self.component_storage, comps);
+        if !inserted {
+            let error = format!(
+                "failed to insert entity, ensure components have storages (comps: {:?})",
+                TypeId::of::<A>(),
+            );
+            return EntityCreateResult::Failed(error);
+        }
 
         // now try to push this entity in a group if possible !
-        let mut am = self.archetypes.borrow_mut();
-        let grouped = am.group(entity, components);
+        let entity_group: GroupMask = A::group_mask(&self.component_storage);
+        let am = &mut self.archetypes.borrow_mut();
+        let maybe_runtime_group = am.find_archetype_with_group(&entity_group);
 
-        match grouped {
-            Ok(group) => EntityCreateResult::WithGroup(EntityWithGroup {
-                group,
+        if let Some((arch_id, runtime_group)) = maybe_runtime_group {
+            let supersets = am.get_supersets_slice(arch_id, &runtime_group.mask);
+
+            for superset in 0..supersets.len() {
+
+
+            }
+        }
+
+        match maybe_runtime_group {
+            Some(_) => EntityCreateResult::WithGroup(EntityWithGroup {
+                group: entity_group,
                 entity,
             }),
-            Err(_) => EntityCreateResult::WithoutGroup(entity),
+            None => EntityCreateResult::WithoutGroup(entity),
         }
     }
 }

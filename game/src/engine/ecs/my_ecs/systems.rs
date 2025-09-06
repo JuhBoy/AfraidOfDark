@@ -6,6 +6,7 @@ use core::slice::Iter;
 use std::cell::{RefCell, RefMut};
 use std::marker::PhantomData;
 
+use super::archetypes::RuntimeGroup;
 use super::entities::Entity;
 use super::utils::GroupMask;
 
@@ -30,7 +31,7 @@ pub trait TQuery: 'static {
 
     fn borrow_storage<'a>(world: &'a ECS) -> Self::View<'a>;
     fn borrow_storage_mut(world: &ECS) -> Self::View<'_>;
-    fn entities<'a>(world: &'a ECS, views: &Self::View<'_>) -> (bool, &'a [Entity]);
+    fn entities<'a>(world: &'a ECS, views: &Self::View<'_>) -> (Option<RuntimeGroup>, &'a [Entity]);
     fn iter_predicat(entity: Entity, world: &ECS, view: &Self::View<'_>) -> bool;
     fn get_dense<'a>(entity: Entity, world: &'a ECS, view: &Self::View<'_>) -> Self::Item<'a>;
     fn get_dense_mut<'a>(
@@ -95,7 +96,7 @@ where
         )
     }
 
-    fn entities<'a>(world: &'a ECS, views: &Self::View<'_>) -> (bool, &'a [Entity]) {
+    fn entities<'a>(world: &'a ECS, views: &Self::View<'_>) -> (Option<RuntimeGroup>, &'a [Entity]) {
         let view_a = &views.0;
         let view_b = &views.1;
 
@@ -119,7 +120,7 @@ where
         let store = world.component_storage.get_storage_by_id(id);
         let entities = store.entity_to_component.as_slice().as_ptr();
 
-        let has_group = {
+        let group= {
             let arch_manager = world.archetypes.borrow();
 
             assert!(view_a.store.index <= GroupMask::max_bit_shift());
@@ -132,17 +133,17 @@ where
             let group = arch_manager.find_group(&query_mask);
             if let Some(matching_group) = group {
                 println!(
-                    "Group found for query (gm: {:?}, len: {})",
+                    "[system.rs] Group found for query (gm: {:?}, len: {})",
                     matching_group.mask, matching_group.len
                 );
             }
 
-            group.is_some()
+            group
         };
 
         unsafe {
             let etts: &'a [Entity] = std::slice::from_raw_parts(entities, a_len.min(b_len));
-            (has_group, etts)
+            (group, etts)
         }
     }
 
@@ -235,7 +236,7 @@ where
 {
     pub world: &'iter ECS,
     pub entities: &'iter [Entity],
-    pub use_group: bool,
+    pub group: Option<RuntimeGroup>,
     pub view: A::View<'iter>,
     pub _phantom: PhantomData<A>,
 
@@ -252,7 +253,7 @@ where
         Self {
             world,
             entities: group_with_entities.1,
-            use_group: group_with_entities.0,
+            group: group_with_entities.0, 
             view,
             _phantom: PhantomData::<A>,
             next: 0,
@@ -289,7 +290,7 @@ where
 {
     world: &'a ECS,
     entities: &'a [Entity],
-    use_group: bool,
+    group: Option<RuntimeGroup>,
     view: A::View<'a>,
     _phantom: PhantomData<&'a A>,
 
@@ -308,7 +309,7 @@ where
             view,
             _phantom: PhantomData,
             entities: group_with_entities.1,
-            use_group: group_with_entities.0,
+            group: group_with_entities.0,
             next: 0,
         }
     }

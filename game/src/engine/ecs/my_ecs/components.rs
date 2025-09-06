@@ -90,6 +90,48 @@ impl ComponentBufferSparseSet {
 
         self.component_buffer.get_mut_ref(view.index)
     }
+
+    pub fn swap<T>(&mut self, ett_source: Entity, ett_dest: Entity) -> bool {
+        let Some(view_source) = self.entities.get_unchecked(ett_source.id()) else {
+            return false;
+        };
+        let Some(view_dest) = self.entities.get_unchecked(ett_dest.id()) else {
+            return false;
+        };
+
+        // swap components stored in memory buffer
+        if !self
+            .component_buffer
+            .swap::<T>(view_source.index, view_dest.index)
+        {
+            return false;
+        }
+
+        // swap entity_to_component for archetypes, they are stored in order
+        self.entity_to_component
+            .swap(view_source.index, view_dest.index);
+
+        let source_index = view_source.index;
+        let dest_index = view_dest.index;
+
+        let source = self
+            .entities
+            .get_unchecked_mut(ett_source.id())
+            .as_mut()
+            .unwrap();
+        source.index = dest_index;
+        source.version += 1; 
+
+        let dest = self
+            .entities
+            .get_unchecked_mut(ett_dest.id())
+            .as_mut()
+            .unwrap();
+        dest.index = source_index;
+        dest.version += 1;
+
+        true
+    }
 }
 
 /// ============================
