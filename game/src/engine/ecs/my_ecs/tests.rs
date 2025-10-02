@@ -328,7 +328,7 @@ pub fn test_archetypes_registers() {
     // rejected groups
     assert!(!fail_group_inserted);
 
-    assert_eq!(FIRST_GROUP.len(), manager.layouts[0].components.len());
+    assert_eq!(THIRD_GROUP.len(), manager.layouts[0].components.len());
     assert_eq!(SECOND_GROUP.len(), manager.layouts[1].components.len());
 
     // parenting
@@ -337,12 +337,24 @@ pub fn test_archetypes_registers() {
     assert_eq!(1, manager.layouts[2].set_len);
     assert_eq!(2, manager.layouts[3].set_len);
     assert_eq!(1, manager.layouts[4].set_len);
+    
+    // print all groups
+    for (i, layout) in manager.layouts.iter().enumerate() { 
+        let mut group_str: String = String::from("[");
+        for component in layout.components.iter() {
+            group_str += component.metadata.get_name();
+            group_str += " ";
+        }
+        group_str += "]";
+        
+        println!("[GROUP][{i}]: {group_str}");
+    }
 
     // assert group order
     assert!(FIRST_GROUP
         .iter()
         .enumerate()
-        .all(|(i, y)| { manager.layouts[0].components[i] == *y }));
+        .all(|(i, y)| { manager.layouts[2].components[i] == *y }));
     assert!(SECOND_GROUP
         .iter()
         .enumerate()
@@ -350,7 +362,7 @@ pub fn test_archetypes_registers() {
     assert!(THIRD_GROUP
         .iter()
         .enumerate()
-        .all(|(i, y)| { manager.layouts[2].components[i] == *y }));
+        .all(|(i, y)| { manager.layouts[0].components[i] == *y }));
     assert!(FOURTH_GROUP
         .iter()
         .enumerate()
@@ -401,6 +413,18 @@ pub fn should_flush_archetypes() {
     // Check if 2nd archetype contains storage D, E (store index are 5, 6)
     let val = GroupMask::new(Some((1 << 4) | (1 << 5)));
     assert_eq!(val, manager.archetypes[1].groups_mask);
+
+    // check that the first group is A B C E
+    let val = GroupMask::new(Some(1 | 2 | (1 << 2) | (1 << 3)));
+    assert_eq!(val, manager.archetypes[0].groups[0].mask);
+
+    // check that the second group is A B C
+    let val = GroupMask::new(Some(1 | 2 | (1 << 2)));
+    assert_eq!(val, manager.archetypes[0].groups[1].mask);
+
+    // check that the third group is A B
+    let val = GroupMask::new(Some(1 | 2));
+    assert_eq!(val, manager.archetypes[0].groups[2].mask);
 }
 
 #[test]
@@ -439,27 +463,99 @@ pub fn should_find_group_for_queries() {
         assert_eq!(2, flushed);
     }
 
+    let mut grouped_entity_id: [Entity; 7] = [Entity { id: 0, version: 0 }; 7];
+    let mut gei_i = 0;
+
     // insert 10 entities to ecs world
-    for _i in 0..10 {
-        let result: EntityCreateResult = ecs.create((A {}, B {}));
-        assert!(matches!(result, EntityCreateResult::WithGroup(_)));
+    for i in 0..10 {
+        let result: EntityCreateResult;
 
-        match result {
-            EntityCreateResult::WithGroup(grouped) => {
-                // entity group
-                let ett_group_msk = grouped.group;
-
-                // mask of the target group
-                let meta_a = ecs.component_storage.get_statage_metadata::<A>();
-                let meta_b = ecs.component_storage.get_statage_metadata::<B>();
-                let group_msk = GroupMask::new(Some(
-                    (1 << meta_a.index as u64) | (1 << meta_b.index as u64),
-                ));
-
-                assert!(group_msk.is_match(&ett_group_msk));
-            }
-            _ => panic!(),
+        if i == 4 || i == 8 {
+            result = ecs.create((A {}, B {}, C {}, E {}));
+            assert!(matches!(result, EntityCreateResult::Grouped(_)));
+        } else if i % 2 == 0 {
+            result = ecs.create((A {}, C {}));
+        } else {
+            result = ecs.create((A {}, B {}));
+            assert!(matches!(result, EntityCreateResult::Grouped(_)));
         }
+
+        if let EntityCreateResult::Grouped(grouped) = result {
+            // entity group
+            let ett_group_msk = grouped.group;
+
+            grouped_entity_id[gei_i] = grouped.entity;
+            gei_i += 1;
+
+            // mask of the target group
+            let meta_a = ecs.component_storage.get_statage_metadata::<A>();
+            let meta_b = ecs.component_storage.get_statage_metadata::<B>();
+            let meta_c = ecs.component_storage.get_statage_metadata::<C>();
+            let meta_e = ecs.component_storage.get_statage_metadata::<E>();
+            let group_msk_ab = GroupMask::new(Some(
+                (1 << meta_a.index as u64) | (1 << meta_b.index as u64),
+            ));
+            let group_msk_abce = GroupMask::new(Some(
+                (1 << meta_a.index as u64)
+                    | (1 << meta_b.index as u64)
+                    | (1 << meta_c.index as u64)
+                    | (1 << meta_e.index as u64),
+            ));
+
+            assert!(
+                group_msk_ab.is_match(&ett_group_msk) || group_msk_abce.is_match(&ett_group_msk)
+            );
+        }
+    }
+
+    println!("grouped_entity_id: {:?}", grouped_entity_id);
+    {
+        for (i, a_ett) in ecs
+            .component_storage
+            .get_storage::<A>()
+            .entity_to_component
+            .iter()
+            .enumerate()
+        {
+            print!("[{i}]: {:?}, ", a_ett);
+        }
+        println!("");
+
+        for (i, a_ett) in ecs
+            .component_storage
+            .get_storage::<B>()
+            .entity_to_component
+            .iter()
+            .enumerate()
+        {
+            print!("[{i}]: {:?}, ", a_ett);
+        }
+        println!("");
+    }
+
+    // testing group length
+    {
+        let am = ecs.archetypes.borrow();
+        let ai = ecs.component_storage.get_statage_metadata::<A>();
+        let bi = ecs.component_storage.get_statage_metadata::<B>();
+        let ci = ecs.component_storage.get_statage_metadata::<C>();
+        let ei = ecs.component_storage.get_statage_metadata::<E>();
+
+        let mut group_mask = GroupMask::new(None);
+        group_mask.set(ai.index as u8);
+        group_mask.set(bi.index as u8);
+
+        let (arch_id, runtime_group) = am.find_archetype_with_group(&group_mask).unwrap();
+        println!("runtimegroup is: {:?}", runtime_group);
+
+        assert_eq!(0, arch_id);
+        assert_eq!(7, runtime_group.len);
+
+        group_mask.set(ci.index as u8);
+        group_mask.set(ei.index as u8);
+
+        let (arch_id, runtime_group) = am.find_archetype_with_group(&group_mask).unwrap();
+        assert_eq!(2, runtime_group.len);
     }
 
     // assert a group has been found for this query
@@ -474,8 +570,9 @@ pub fn should_find_group_for_queries() {
     // contiguous topology for those entities
     // ⚠️⚠️⚠️Warning ⚠️⚠️⚠️
     //
+
     let iterated_entities = iter.fold(0, |acc, (_a, _b)| acc + 1);
-    assert_eq!(10, iterated_entities);
+    assert_eq!(7, iterated_entities);
 }
 
 pub fn iter_test_system(params: &mut SystemParams) {

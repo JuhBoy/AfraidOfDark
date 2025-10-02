@@ -1,7 +1,5 @@
-use std::ops::Range;
-use std::slice::Iter;
 use std::{any::TypeId, cmp::Ordering, marker::PhantomData};
-
+use std::any::type_name;
 use crate::engine::ecs::my_ecs::{
     components::{ComponentMetaData, ComponentStorage},
     utils::GroupMask,
@@ -112,7 +110,7 @@ impl ArchetypesManager {
             }
 
             for group in archetype.groups.iter() {
-                if group.mask.eq(mask) {
+                if !group.mask.eq(mask) {
                     continue;
                 }
 
@@ -191,8 +189,7 @@ impl ArchetypesManager {
                         parent_index = Some(index);
                     }
 
-                    insert_index = index;
-                    break;
+                    insert_index = index + 1;
                 }
                 Ordering::Equal => {
                     // they are equals but intersects, we can't accept it as a sub/super Set
@@ -209,7 +206,8 @@ impl ArchetypesManager {
                         parent_index = Some(index);
                     }
 
-                    insert_index = index + 1;
+                    insert_index = index;
+                    break;
                 }
             };
         }
@@ -285,7 +283,7 @@ where
 
 pub struct ComponentData {
     #[allow(unused)]
-    metadata: &'static dyn TAbstractComponentData,
+    pub metadata: &'static dyn TAbstractComponentData,
 }
 impl ComponentData {
     pub const fn new<T>() -> Self
@@ -365,57 +363,90 @@ pub trait ComponentSet {
     fn group_mask(storage: &ComponentStorage) -> GroupMask;
     fn group(
         entity: &Entity,
-        comps: Self,
         archetypes: &mut ArchetypesManager,
         storage: &mut ComponentStorage,
     ) -> bool;
 }
 
-impl<A, B> ComponentSet for (A, B)
-where
-    A: 'static,
-    B: 'static,
-{
-    fn insert(entity: &Entity, storage: &mut ComponentStorage, comps: Self) -> bool {
-        let added_a = storage.add_component(*entity, comps.0);
-        if !added_a {
-            return false;
+macro_rules! compile_impl_component_set {
+    ( ($( ($components:tt, $index:tt) ),*), $count:tt ) => {
+
+      impl<$($components),*> ComponentSet for ($($components),*)
+      where
+        $($components: 'static),*
+      {
+        fn insert(entity: &Entity, storage: &mut ComponentStorage, comps: Self) -> bool {
+
+            $(
+              let added = storage.add_component(*entity, comps.$index);
+              if !added {
+                return false;
+              }
+            )*
+
+            return true;
         }
 
-        let added_b = storage.add_component(*entity, comps.1);
+        fn group_mask(storage: &ComponentStorage) -> GroupMask {
+            let mut mask: GroupMask = GroupMask::new(None);
 
-        added_a && added_b
-    }
+            $(
+                let store: ComponentMetaData = storage.get_statage_metadata::<$components>();
+                mask.set(store.index as u8);
+            )*
 
-    fn group_mask(storage: &ComponentStorage) -> GroupMask {
-        let mut group_mask = GroupMask::new(None);
-
-        let metadata_a = storage.get_statage_metadata::<A>();
-        group_mask.set(metadata_a.index as u8);
-
-        let metadata_b = storage.get_statage_metadata::<B>();
-        group_mask.set(metadata_b.index as u8);
-
-        group_mask
-    }
-
-    fn group(
-        entity: &Entity,
-        comps: Self,
-        archetypes: &mut ArchetypesManager,
-        storage: &mut ComponentStorage,
-    ) -> bool {
-        // here we should have already inserted the entity and added the corresponding sotrages
-        // slots.
-
-        let group_mask = Self::group_mask(storage);
-        let ett_archetype = archetypes.find_archetype_with_group(&group_mask);
-        if ett_archetype.is_none() {
-            panic!("this is very bad");
+            mask
         }
 
-        // let archetypes = archetypes.
+        fn group(entity: &Entity,
+          archetypes: &mut ArchetypesManager,
+          storage: &mut ComponentStorage,
+        ) -> bool {
+            let group_mask = Self::group_mask(storage);
+            let ett_archetype = archetypes.find_archetype_with_group(&group_mask);
 
-        true
-    }
+            // it is completely ok to fail grouping when no matching runtime groups exist
+            let Some((archetype_id, runtime_group)) = ett_archetype else {
+                {
+                    let entity_id = entity.id;
+                    println!("entity {entity_id} has no matching group");
+                }
+                return false;
+            };
+
+            // create tuple to store all storages
+            let mut stores = ($(storage.get_storage_mut::<$components>()),*);
+            let mut swapping_entities: [Entity; $count] = [*entity; $count];
+
+            let supersets = archetypes.get_supersets_slice(archetype_id, &runtime_group.mask);
+
+            (0..supersets.len()).for_each(|superset_id| {
+                let superset = &mut supersets[superset_id];
+                let swap_index = superset.len as usize;
+
+                $({
+                    let store = &mut stores.$index;
+
+                    if let Some(store_ett) = store.get_entity(swap_index) {
+                        let swaped = store.swap::<$components>(swapping_entities[$index], store_ett);
+                        swapping_entities[$index] = store_ett;
+
+                        if !swaped {
+                            panic!("swap failed for component {:?}", TypeId::of::<$components>());
+                        }
+                    }
+                })*
+            
+                superset.len += 1;
+            });
+
+            true
+        }
+      }
+    };
 }
+
+compile_impl_component_set!(((A, 0), (B, 1)), 2);
+compile_impl_component_set!(((A, 0), (B, 1), (C, 2)), 3);
+compile_impl_component_set!(((A, 0), (B, 1), (C, 2), (D, 3)), 4);
+compile_impl_component_set!(((A, 0), (B, 1), (C, 2), (D, 3), (E, 4)), 5);

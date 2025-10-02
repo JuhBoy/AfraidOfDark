@@ -120,7 +120,6 @@ impl ComponentBufferSparseSet {
             .as_mut()
             .unwrap();
         source.index = dest_index;
-        source.version += 1; 
 
         let dest = self
             .entities
@@ -128,9 +127,13 @@ impl ComponentBufferSparseSet {
             .as_mut()
             .unwrap();
         dest.index = source_index;
-        dest.version += 1;
 
         true
+    }
+
+    pub fn get_entity(&self, position: usize) -> Option<Entity>{ 
+        let entity = self.entity_to_component.get(position);
+        entity.copied() 
     }
 }
 

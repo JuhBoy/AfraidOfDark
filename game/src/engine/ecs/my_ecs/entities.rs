@@ -1,7 +1,7 @@
 use crate::engine::ecs::my_ecs::utils::{SparseSet, ID};
 use std::collections::VecDeque;
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct Entity {
     pub id: usize,
     pub version: u32,

@@ -1,6 +1,5 @@
 use std::any::TypeId;
 use std::cell::RefCell;
-use std::string;
 
 use crate::engine::ecs::my_ecs::archetypes::{
     ArchetypeDefinition, ArchetypesManager, ComponentData,
@@ -15,8 +14,8 @@ use super::utils::GroupMask;
 #[derive(PartialEq)]
 pub enum EntityCreateResult {
     Failed(String),
-    WithGroup(EntityWithGroup),
-    WithoutGroup(Entity),
+    Grouped(EntityWithGroup),
+    Ungrouped(Entity),
 }
 #[derive(PartialEq)]
 pub struct EntityWithGroup {
@@ -91,10 +90,7 @@ impl ECS {
         A: ComponentSet + 'static,
     {
         let entity = self.entity_storage.create();
-        // let components: &[ComponentData] = A::COMPONENTS;
 
-        // ----
-        // @todo: working here probably needs to rework everything after this point /!\
         let inserted = A::insert(&entity, &mut self.component_storage, comps);
         if !inserted {
             let error = format!(
@@ -104,26 +100,19 @@ impl ECS {
             return EntityCreateResult::Failed(error);
         }
 
-        // now try to push this entity in a group if possible !
-        let entity_group: GroupMask = A::group_mask(&self.component_storage);
-        let am = &mut self.archetypes.borrow_mut();
-        let maybe_runtime_group = am.find_archetype_with_group(&entity_group);
+        let entity_group_mask: GroupMask = A::group_mask(&self.component_storage);
+        let grouped: bool = A::group(
+            &entity,
+            &mut self.archetypes.borrow_mut(),
+            &mut self.component_storage,
+        );
 
-        if let Some((arch_id, runtime_group)) = maybe_runtime_group {
-            let supersets = am.get_supersets_slice(arch_id, &runtime_group.mask);
-
-            for superset in 0..supersets.len() {
-
-
-            }
-        }
-
-        match maybe_runtime_group {
-            Some(_) => EntityCreateResult::WithGroup(EntityWithGroup {
-                group: entity_group,
+        match grouped {
+            true => EntityCreateResult::Grouped(EntityWithGroup {
+                group: entity_group_mask,
                 entity,
             }),
-            None => EntityCreateResult::WithoutGroup(entity),
+            _ => EntityCreateResult::Ungrouped(entity),
         }
     }
 }

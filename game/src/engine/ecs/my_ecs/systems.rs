@@ -1,9 +1,7 @@
 use crate::engine::ecs::my_ecs::components::{ComponentBufferSparseSet, ComponentMetaData};
 use crate::engine::ecs::my_ecs::ecs::ECS;
-use crate::engine::ecs::my_ecs::entities;
-use atomic_refcell::{AtomicRef, AtomicRefMut};
+use atomic_refcell::{AtomicRefMut};
 use core::slice::Iter;
-use std::cell::{RefCell, RefMut};
 use std::marker::PhantomData;
 
 use super::archetypes::RuntimeGroup;
@@ -133,8 +131,8 @@ where
             let group = arch_manager.find_group(&query_mask);
             if let Some(matching_group) = group {
                 println!(
-                    "[system.rs] Group found for query (gm: {:?}, len: {})",
-                    matching_group.mask, matching_group.len
+                    "[system.rs] Group found for query (gm: {:?}, len: {}) [{:?}]",
+                    matching_group.mask, matching_group.len, query_mask
                 );
             }
 
