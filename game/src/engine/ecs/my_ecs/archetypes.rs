@@ -368,7 +368,7 @@ pub trait ComponentSet {
     ) -> bool;
 }
 
-macro_rules! compile_impl_component_set {
+macro_rules! generate_component_set {
     ( ($( ($components:tt, $index:tt) ),*), $count:tt ) => {
 
       impl<$($components),*> ComponentSet for ($($components),*)
@@ -446,7 +446,7 @@ macro_rules! compile_impl_component_set {
     };
 }
 
-compile_impl_component_set!(((A, 0), (B, 1)), 2);
-compile_impl_component_set!(((A, 0), (B, 1), (C, 2)), 3);
-compile_impl_component_set!(((A, 0), (B, 1), (C, 2), (D, 3)), 4);
-compile_impl_component_set!(((A, 0), (B, 1), (C, 2), (D, 3), (E, 4)), 5);
+generate_component_set!(((A, 0), (B, 1)), 2);
+generate_component_set!(((A, 0), (B, 1), (C, 2)), 3);
+generate_component_set!(((A, 0), (B, 1), (C, 2), (D, 3)), 4);
+generate_component_set!(((A, 0), (B, 1), (C, 2), (D, 3), (E, 4)), 5);

@@ -337,16 +337,16 @@ pub fn test_archetypes_registers() {
     assert_eq!(1, manager.layouts[2].set_len);
     assert_eq!(2, manager.layouts[3].set_len);
     assert_eq!(1, manager.layouts[4].set_len);
-    
+
     // print all groups
-    for (i, layout) in manager.layouts.iter().enumerate() { 
+    for (i, layout) in manager.layouts.iter().enumerate() {
         let mut group_str: String = String::from("[");
         for component in layout.components.iter() {
             group_str += component.metadata.get_name();
             group_str += " ";
         }
         group_str += "]";
-        
+
         println!("[GROUP][{i}]: {group_str}");
     }
 
@@ -481,9 +481,7 @@ pub fn should_find_group_for_queries() {
         }
 
         if let EntityCreateResult::Grouped(grouped) = result {
-            // entity group
             let ett_group_msk = grouped.group;
-
             grouped_entity_id[gei_i] = grouped.entity;
             gei_i += 1;
 
@@ -492,6 +490,7 @@ pub fn should_find_group_for_queries() {
             let meta_b = ecs.component_storage.get_statage_metadata::<B>();
             let meta_c = ecs.component_storage.get_statage_metadata::<C>();
             let meta_e = ecs.component_storage.get_statage_metadata::<E>();
+
             let group_msk_ab = GroupMask::new(Some(
                 (1 << meta_a.index as u64) | (1 << meta_b.index as u64),
             ));
@@ -508,31 +507,6 @@ pub fn should_find_group_for_queries() {
         }
     }
 
-    println!("grouped_entity_id: {:?}", grouped_entity_id);
-    {
-        for (i, a_ett) in ecs
-            .component_storage
-            .get_storage::<A>()
-            .entity_to_component
-            .iter()
-            .enumerate()
-        {
-            print!("[{i}]: {:?}, ", a_ett);
-        }
-        println!("");
-
-        for (i, a_ett) in ecs
-            .component_storage
-            .get_storage::<B>()
-            .entity_to_component
-            .iter()
-            .enumerate()
-        {
-            print!("[{i}]: {:?}, ", a_ett);
-        }
-        println!("");
-    }
-
     // testing group length
     {
         let am = ecs.archetypes.borrow();
@@ -546,15 +520,17 @@ pub fn should_find_group_for_queries() {
         group_mask.set(bi.index as u8);
 
         let (arch_id, runtime_group) = am.find_archetype_with_group(&group_mask).unwrap();
-        println!("runtimegroup is: {:?}", runtime_group);
 
-        assert_eq!(0, arch_id);
-        assert_eq!(7, runtime_group.len);
+        assert_eq!(0, arch_id, "the archetype id is invalid");
+        assert_eq!(
+            7, runtime_group.len,
+            "AB group has not enough elements, they should be added by ABCE superset"
+        );
 
         group_mask.set(ci.index as u8);
         group_mask.set(ei.index as u8);
 
-        let (arch_id, runtime_group) = am.find_archetype_with_group(&group_mask).unwrap();
+        let (_, runtime_group) = am.find_archetype_with_group(&group_mask).unwrap();
         assert_eq!(2, runtime_group.len);
     }
 
@@ -562,14 +538,6 @@ pub fn should_find_group_for_queries() {
     let query: Query<(A, B)> = Query::new(&ecs);
     let iter = query.iter();
     assert!(iter.group.is_some());
-
-    // assert the entity count is ok
-    // @todo:
-    // ⚠️⚠️⚠️Warning ⚠️⚠️⚠️ ==========
-    // this is not working yet, the group must intersects the current group layout and build
-    // contiguous topology for those entities
-    // ⚠️⚠️⚠️Warning ⚠️⚠️⚠️
-    //
 
     let iterated_entities = iter.fold(0, |acc, (_a, _b)| acc + 1);
     assert_eq!(7, iterated_entities);
