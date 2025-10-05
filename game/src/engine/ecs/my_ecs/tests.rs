@@ -541,6 +541,10 @@ pub fn should_find_group_for_queries() {
 
     let iterated_entities = iter.fold(0, |acc, (_a, _b)| acc + 1);
     assert_eq!(7, iterated_entities);
+    
+    let query: Query<(A, B, C, E)> = Query::new(&ecs);
+    assert!(!query.iter().is_empty());
+    assert_eq!(2, query.iter().len());
 }
 
 pub fn iter_test_system(params: &mut SystemParams) {

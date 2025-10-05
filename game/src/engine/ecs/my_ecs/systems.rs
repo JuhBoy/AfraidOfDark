@@ -71,11 +71,20 @@ where
         Self {
             world,
             entities: group_with_entities.1,
-            group: group_with_entities.0, 
+            group: group_with_entities.0,
             view,
             _phantom: PhantomData::<A>,
             next: 0,
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.group.map_or(self.entities.len(), |f| f.len as usize)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        let len = self.len();
+        len == 0
     }
 }
 impl<'a, A> Iterator for QueryRef<'a, A>
@@ -131,7 +140,17 @@ where
             next: 0,
         }
     }
+
+    pub fn len(&self) -> usize {
+        self.group.map_or(self.entities.len(), |f| f.len as usize)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        let len = self.len();
+        len == 0
+    }
 }
+
 impl<'a, A> Iterator for QueryMut<'a, A>
 where
     A: TQuery,
