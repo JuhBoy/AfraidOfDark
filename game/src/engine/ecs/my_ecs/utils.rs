@@ -204,6 +204,10 @@ where
         self.dense_set.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.dense_set.iter()
     }
@@ -297,7 +301,7 @@ impl GroupMask {
         self.mask ^= 1 << index;
     }
 
-    pub fn is_set(&mut self, index: u8) -> bool {
+    pub fn is_set(&self, index: u8) -> bool {
         self.mask & (1 << index) != 0
     }
 

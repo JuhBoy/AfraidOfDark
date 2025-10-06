@@ -223,7 +223,7 @@ impl ComponentStorage {
         self.storages[index].borrow()
     }
 
-    pub fn get_statage_metadata<T>(&self) -> ComponentMetaData
+    pub fn get_storage_metadata<T>(&self) -> ComponentMetaData
     where
         T: 'static,
     {

@@ -272,7 +272,7 @@ where
     }
 
     fn get_storage_metadata(&self, storage: &ComponentStorage) -> ComponentMetaData {
-        storage.get_statage_metadata::<T>()
+        storage.get_storage_metadata::<T>()
     }
 
     fn add_component(&mut self, _storage: &ComponentStorage) -> bool {
@@ -391,7 +391,7 @@ macro_rules! generate_component_set {
             let mut mask: GroupMask = GroupMask::new(None);
 
             $(
-                let store: ComponentMetaData = storage.get_statage_metadata::<$components>();
+                let store: ComponentMetaData = storage.get_storage_metadata::<$components>();
                 mask.set(store.index as u8);
             )*
 

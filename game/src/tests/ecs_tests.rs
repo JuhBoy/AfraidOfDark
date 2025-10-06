@@ -1,6 +1,6 @@
 use bevy_ecs::world;
 
-use super::{
+use crate::engine::ecs::my_ecs::{
     archetypes::ComponentData,
     components::ComponentStorage,
     ecs::ECS,
@@ -486,10 +486,10 @@ pub fn should_find_group_for_queries() {
             gei_i += 1;
 
             // mask of the target group
-            let meta_a = ecs.component_storage.get_statage_metadata::<A>();
-            let meta_b = ecs.component_storage.get_statage_metadata::<B>();
-            let meta_c = ecs.component_storage.get_statage_metadata::<C>();
-            let meta_e = ecs.component_storage.get_statage_metadata::<E>();
+            let meta_a = ecs.component_storage.get_storage_metadata::<A>();
+            let meta_b = ecs.component_storage.get_storage_metadata::<B>();
+            let meta_c = ecs.component_storage.get_storage_metadata::<C>();
+            let meta_e = ecs.component_storage.get_storage_metadata::<E>();
 
             let group_msk_ab = GroupMask::new(Some(
                 (1 << meta_a.index as u64) | (1 << meta_b.index as u64),
@@ -510,10 +510,10 @@ pub fn should_find_group_for_queries() {
     // testing group length
     {
         let am = ecs.archetypes.borrow();
-        let ai = ecs.component_storage.get_statage_metadata::<A>();
-        let bi = ecs.component_storage.get_statage_metadata::<B>();
-        let ci = ecs.component_storage.get_statage_metadata::<C>();
-        let ei = ecs.component_storage.get_statage_metadata::<E>();
+        let ai = ecs.component_storage.get_storage_metadata::<A>();
+        let bi = ecs.component_storage.get_storage_metadata::<B>();
+        let ci = ecs.component_storage.get_storage_metadata::<C>();
+        let ei = ecs.component_storage.get_storage_metadata::<E>();
 
         let mut group_mask = GroupMask::new(None);
         group_mask.set(ai.index as u8);
