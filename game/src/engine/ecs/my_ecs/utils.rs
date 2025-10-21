@@ -143,6 +143,20 @@ impl SparseVec {
         })
     }
 
+    pub fn get(&self, index: usize, version: u32) -> Option<usize> {
+        self.sparse
+            .get(index)?
+            .filter(|e| e.version == version)
+            .map(|e| e.index)
+    }
+
+    pub fn get_mut(&mut self, index: usize, version: u32) -> Option<usize> {
+        self.sparse
+            .get_mut(index)?
+            .take_if(|e| e.version == version)
+            .map(|e| e.index)
+    }
+
     pub fn get_unchecked_mut(&mut self, index: usize) -> &mut Option<SparseView> {
         if index >= self.sparse.len() {
             self.sparse.resize_with(

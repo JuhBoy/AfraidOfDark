@@ -1,15 +1,15 @@
 use bevy_ecs::world;
 
 use crate::engine::ecs::my_ecs::{
+    archetypes::ArchetypesManager,
+    ecs::EntityCreateResult,
+    systems::{make_system, Query, QueryMut, SystemParams},
+};
+use crate::engine::ecs::my_ecs::{
     archetypes::ComponentData,
     components::ComponentStorage,
     ecs::ECS,
     systems::{System, SystemUpdate},
-};
-use crate::engine::ecs::my_ecs::{
-    archetypes::ArchetypesManager,
-    ecs::EntityCreateResult,
-    systems::{make_system, Query, QueryMut, SystemParams},
 };
 use crate::engine::ecs::my_ecs::{
     components::ComponentBufferSparseSet,
@@ -215,6 +215,10 @@ pub fn test_component_storage() {
         .get::<Velocity>(Entity { id: 5, version: 1 })
         .unwrap();
     assert_eq!(500f32, r_5_vel.x);
+
+    let r_5_version_update = Entity { id: 5, version: 2 };
+    let r_5_comp_up = com_storage.get::<Velocity>(r_5_version_update);
+    assert!(r_5_comp_up.is_none());
 }
 
 #[test]
@@ -541,7 +545,7 @@ pub fn should_find_group_for_queries() {
 
     let iterated_entities = iter.fold(0, |acc, (_a, _b)| acc + 1);
     assert_eq!(7, iterated_entities);
-    
+
     let query: Query<(A, B, C, E)> = Query::new(&ecs);
     assert!(!query.iter().is_empty());
     assert_eq!(2, query.iter().len());

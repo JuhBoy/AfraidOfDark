@@ -76,43 +76,35 @@ impl ComponentBufferSparseSet {
     }
 
     pub fn get<T>(&self, ett: Entity) -> Option<&T> {
-        let Some(view) = self.entities.get_unchecked(ett.id()) else {
-            return None;
-        };
+        let view_index = self.entities.get(ett.id(), ett.version())?;
 
-        self.component_buffer.get_ref(view.index)
+        self.component_buffer.get_ref(view_index)
     }
 
     pub fn get_mut<T>(&mut self, ett: Entity) -> Option<&mut T> {
-        let Some(view) = self.entities.get_unchecked_mut(ett.id()) else {
-            return None;
-        };
+        let view_index = self.entities.get_mut(ett.id(), ett.version())?;
 
-        self.component_buffer.get_mut_ref(view.index)
+        self.component_buffer.get_mut_ref(view_index)
     }
 
     pub fn swap<T>(&mut self, ett_source: Entity, ett_dest: Entity) -> bool {
-        let Some(view_source) = self.entities.get_unchecked(ett_source.id()) else {
+        let Some(view_source) = self.entities.get(ett_source.id(), ett_source.version()) else {
             return false;
         };
-        let Some(view_dest) = self.entities.get_unchecked(ett_dest.id()) else {
+        let Some(view_dest) = self.entities.get(ett_dest.id(), ett_dest.version()) else {
             return false;
         };
 
         // swap components stored in memory buffer
-        if !self
-            .component_buffer
-            .swap::<T>(view_source.index, view_dest.index)
-        {
+        if !self.component_buffer.swap::<T>(view_source, view_dest) {
             return false;
         }
 
         // swap entity_to_component for archetypes, they are stored in order
-        self.entity_to_component
-            .swap(view_source.index, view_dest.index);
+        self.entity_to_component.swap(view_source, view_dest);
 
-        let source_index = view_source.index;
-        let dest_index = view_dest.index;
+        let source_index = view_source;
+        let dest_index = view_dest;
 
         let source = self
             .entities
@@ -131,9 +123,9 @@ impl ComponentBufferSparseSet {
         true
     }
 
-    pub fn get_entity(&self, position: usize) -> Option<Entity>{ 
+    pub fn get_entity(&self, position: usize) -> Option<Entity> {
         let entity = self.entity_to_component.get(position);
-        entity.copied() 
+        entity.copied()
     }
 }
 
