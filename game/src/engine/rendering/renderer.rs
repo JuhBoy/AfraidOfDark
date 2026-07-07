@@ -69,8 +69,8 @@ impl Renderer {
         // Set the OpenGL version to 4.3 - todo! export this in opengl files
         unsafe {
             glfwInit();
-            glfwWindowHint(glfw::ffi::CONTEXT_VERSION_MAJOR, 4);
-            glfwWindowHint(glfw::ffi::CONTEXT_VERSION_MINOR, 3);
+            glfwWindowHint(glfw::ffi::GLFW_CONTEXT_VERSION_MAJOR, 4);
+            glfwWindowHint(glfw::ffi::GLFW_CONTEXT_VERSION_MINOR, 3);
 
             #[cfg(target_os = "macos")]
             {
@@ -133,7 +133,11 @@ impl Renderer {
         self.window.set_key_polling(true);
 
         // Load all function pointers from the graphic driver
-        gl::load_with(|procname: &str| self.window.get_proc_address(procname));
+        gl::load_with(|procname: &str| {
+            self.window
+                .get_proc_address(procname)
+                .map_or(std::ptr::null(), |p| p as *const _)
+        });
 
         let (scaled_width, scaled_height) = self.window.get_framebuffer_size();
 

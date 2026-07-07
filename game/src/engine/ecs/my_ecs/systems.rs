@@ -94,17 +94,25 @@ where
     type Item = A::Item<'a>;
 
     fn next(&mut self) -> Option<A::Item<'a>> {
-        for i in self.next..self.entities.len() {
+        let mut is_broken: bool = false;
+
+        for i in self.next..self.len() {
             let entity = self.entities[i];
             self.next = i + 1;
 
             if !A::iter_predicate(entity, self.world, &self.view) {
+                is_broken = true;
                 continue;
             }
 
             let data = A::get_dense(entity, self.world, &self.view);
 
             return Some(data);
+        }
+
+        if is_broken {
+            let mut borrow_stats = self.world.stats.borrow_mut();
+            borrow_stats.archetypes_broken += 1
         }
 
         None
@@ -158,17 +166,25 @@ where
     type Item = A::ItemMut<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        for i in self.next..self.entities.len() {
+        let mut is_broken: bool = false;
+
+        for i in self.next..self.len() {
             let entity = self.entities[i];
             self.next = i + 1;
 
             if !A::iter_predicate(entity, self.world, &self.view) {
+                is_broken = true;
                 continue;
             }
 
             let data = A::get_dense_mut(entity, self.world, &self.view);
 
             return Some(data);
+        }
+
+        if is_broken {
+            let mut borrow_stats = self.world.stats.borrow_mut();
+            borrow_stats.archetypes_broken += 1
         }
 
         None

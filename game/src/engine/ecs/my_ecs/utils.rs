@@ -133,6 +133,14 @@ impl SparseVec {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.sparse.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn has(&self, index: usize, version: u32) -> bool {
         self.sparse.get(index).map_or(false, |view| {
             if let Some(view) = view {

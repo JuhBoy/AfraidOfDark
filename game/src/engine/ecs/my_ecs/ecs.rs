@@ -11,8 +11,25 @@ use crate::engine::ecs::my_ecs::systems::{System, SystemParams, TSystem};
 use super::archetypes::ComponentSet;
 use super::utils::GroupMask;
 
+pub struct ECSStats {
+    pub archetypes_broken: i32,
+}
+impl ECSStats {
+    pub fn new() -> RefCell<ECSStats> {
+        RefCell::new(ECSStats {
+            archetypes_broken: 0,
+        })
+    }
+}
+
 #[derive(PartialEq)]
 pub enum EntityCreateResult {
+    Failed(String),
+    Grouped(EntityWithGroup),
+    Ungrouped(Entity),
+}
+#[derive(PartialEq)]
+pub enum EntityUpdateResult {
     Failed(String),
     Grouped(EntityWithGroup),
     Ungrouped(Entity),
@@ -27,6 +44,7 @@ pub struct ECS {
     pub component_storage: ComponentStorage,
     pub update_systems: Vec<System>,
     pub archetypes: RefCell<ArchetypesManager>,
+    pub stats: RefCell<ECSStats>,
 }
 impl ECS {
     pub fn update(&mut self) {
@@ -58,11 +76,62 @@ impl ECS {
         self.component_storage.allocate::<T>()
     }
 
-    pub fn add_component<T>(&mut self, entity: Entity, comp: T) -> bool
+    pub fn has_component<T>(&self, entity: Entity) -> bool
     where
         T: 'static,
     {
-        self.component_storage.add_component::<T>(entity, comp)
+        return self.component_storage.has_component::<T>(entity);
+    }
+
+    pub fn add_component<TCompSet>(
+        &mut self,
+        entity: Entity,
+        components: TCompSet,
+    ) -> EntityUpdateResult
+    where
+        TCompSet: ComponentSet + 'static,
+    {
+        let storage = &mut self.component_storage;
+        let mut arch_manager = self.archetypes.borrow_mut();
+
+        let inserted = TCompSet::insert(&entity, storage, components);
+        if !inserted {
+            let error = format!(
+                "failed to insert entity, ensure components have storages (comps: {:?})",
+                TypeId::of::<TCompSet>(),
+            );
+            return EntityUpdateResult::Failed(error);
+        }
+
+        let _group_result = TCompSet::group(&entity, &mut arch_manager, storage);
+
+        // @todo: see later how this should be used to debug easily
+        #[cfg(debug_ecs)]
+        {
+            println!("entity grouped on add component ? {}", _group_result);
+        }
+
+        let group_mask = TCompSet::group_mask(&storage);
+
+        return match _group_result {
+            true => EntityUpdateResult::Grouped(EntityWithGroup {
+                group: group_mask,
+                entity: entity,
+            }),
+            _ => EntityUpdateResult::Ungrouped(entity),
+        };
+    }
+
+    pub fn remove_component<T>(&mut self, entity: Entity) -> bool
+    where
+        T: ComponentSet + 'static,
+    {
+        let storage = &mut self.component_storage;
+        let mut archetype = self.archetypes.borrow_mut();
+
+        let ungrouped = T::ungroup(entity, &mut archetype, storage);
+
+        ungrouped
     }
 
     pub fn make_archetype<A>(&self) -> bool
@@ -91,12 +160,14 @@ impl ECS {
     {
         let entity = self.entity_storage.create();
 
-        let inserted = A::insert(&entity, &mut self.component_storage, comps);
+        let inserted: bool = A::insert(&entity, &mut self.component_storage, comps);
         if !inserted {
             let error = format!(
                 "failed to insert entity, ensure components have storages (comps: {:?})",
                 TypeId::of::<A>(),
             );
+
+            self.entity_storage.remove(entity);
             return EntityCreateResult::Failed(error);
         }
 

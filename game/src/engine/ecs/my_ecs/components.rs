@@ -127,6 +127,15 @@ impl ComponentBufferSparseSet {
         let entity = self.entity_to_component.get(position);
         entity.copied()
     }
+
+    pub fn get_entity_index(&self, entity: Entity) -> Option<usize> {
+        let entity = self.entities.get(entity.id(), entity.version())?;
+        Some(entity)
+    }
+
+    pub fn get_entity_count(&self) -> usize {
+        self.entity_to_component.len()
+    }
 }
 
 /// ============================
@@ -205,6 +214,20 @@ impl ComponentStorage {
     {
         let component_type_id = TypeId::of::<T>();
         self.storages[self.storages_index_by_type_id[&component_type_id].index].borrow_mut()
+    }
+
+    pub fn has_component<T>(&self, entity: Entity) -> bool
+    where
+        T: 'static,
+    {
+        let search_type = TypeId::of::<T>();
+
+        if let Some(metadata) = self.storages_index_by_type_id.get(&search_type) {
+            let store = self.storages[metadata.index].borrow();
+            return store.has(entity);
+        }
+        
+        false
     }
 
     pub fn get_storage_mut_by_id(&self, index: usize) -> AtomicRefMut<ComponentBufferSparseSet> {

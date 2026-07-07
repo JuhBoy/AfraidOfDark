@@ -1,14 +1,18 @@
-use std::{any::TypeId, cmp::Ordering, marker::PhantomData};
-use std::any::type_name;
 use crate::engine::ecs::my_ecs::{
     components::{ComponentMetaData, ComponentStorage},
     utils::GroupMask,
 };
-
+use std::{any::TypeId, cmp::Ordering, marker::PhantomData};
+use std::mem::swap;
 use super::entities::Entity;
 
 // Manager =======================
 //
+#[derive(PartialEq, Eq)]
+pub enum MatchType {
+    Exact,
+    Partial,
+}
 pub struct ArchetypeLayout {
     pub components: &'static [ComponentData],
     pub set_len: usize,
@@ -59,10 +63,11 @@ impl ArchetypesManager {
         }
     }
 
-    pub fn get_supersets_slice(
+    pub fn get_supersets_with_archetype(
         &mut self,
         arch_id: usize,
         group_mask: &GroupMask,
+        match_type: MatchType,
     ) -> &mut [RuntimeGroup] {
         let archetype = self
             .archetypes
@@ -72,7 +77,11 @@ impl ArchetypesManager {
         let group_len = archetype.groups_len();
 
         for (i, group) in archetype.groups.iter().enumerate() {
-            if !group.mask.is_match(group_mask) {
+            if match_type == MatchType::Exact && !group.mask.is_match(group_mask) {
+                continue;
+            }
+            // NOTE(JuH): intersect should be enough but let's make sure that the archetype group contains all of the requested
+            if match_type == MatchType::Partial && !group.mask.is_superset_of(group_mask) {
                 continue;
             }
 
@@ -83,8 +92,39 @@ impl ArchetypesManager {
         &mut self.archetypes[arch_id].groups[start..group_len]
     }
 
+    pub fn get_supersets(
+        &mut self,
+        group_mask: &GroupMask,
+        match_type: MatchType,
+    ) -> Option<&mut [RuntimeGroup]> {
+        let result = self
+            .archetypes
+            .iter_mut()
+            .find(|arch| arch.groups_mask.is_superset_of(group_mask))?;
+
+        let mut mb_start: Option<usize> = None;
+
+        for (index, group) in result.groups.iter().enumerate() {
+            if match_type == MatchType::Exact && !group.mask.is_match(group_mask) {
+                continue;
+            }
+            // NOTE(JuH): intersect should be enough but let's make sure that the archetype group contains all of the requested
+            if match_type == MatchType::Partial && !group.mask.is_superset_of(group_mask) {
+                continue;
+            }
+
+            mb_start = Option::from(index);
+            break;
+        }
+
+        let start = mb_start?;
+        let end = result.groups.len();
+
+        Option::from(&mut result.groups[start..end])
+    }
+
     #[must_use]
-    pub fn find_archetype_with_group(&self, mask: &GroupMask) -> Option<(usize, RuntimeGroup)> {
+    pub fn find_group_exact_match(&self, mask: &GroupMask) -> Option<(usize, RuntimeGroup)> {
         for (index, archetype) in self.archetypes.iter().enumerate() {
             if !archetype.contains(mask) {
                 continue;
@@ -366,12 +406,17 @@ pub trait ComponentSet {
         archetypes: &mut ArchetypesManager,
         storage: &mut ComponentStorage,
     ) -> bool;
+    fn ungroup(
+        entity: Entity,
+        archetypes: &mut ArchetypesManager,
+        storage: &mut ComponentStorage,
+    ) -> bool;
 }
 
 macro_rules! generate_component_set {
-    ( ($( ($components:tt, $index:tt) ),*), $count:tt ) => {
+    ( ($( ($components:tt, $index:tt) ),+), $count:tt ) => {
 
-      impl<$($components),*> ComponentSet for ($($components),*)
+      impl<$($components),*> ComponentSet for ($($components,)*)
       where
         $($components: 'static),*
       {
@@ -403,7 +448,7 @@ macro_rules! generate_component_set {
           storage: &mut ComponentStorage,
         ) -> bool {
             let group_mask = Self::group_mask(storage);
-            let ett_archetype = archetypes.find_archetype_with_group(&group_mask);
+            let ett_archetype = archetypes.find_group_exact_match(&group_mask);
 
             // it is completely ok to fail grouping when no matching runtime groups exist
             let Some((archetype_id, runtime_group)) = ett_archetype else {
@@ -415,10 +460,10 @@ macro_rules! generate_component_set {
             };
 
             // create tuple to store all storages
-            let mut stores = ($(storage.get_storage_mut::<$components>()),*);
+            let mut stores = ($(storage.get_storage_mut::<$components>(),)*);
             let mut swapping_entities: [Entity; $count] = [*entity; $count];
 
-            let supersets = archetypes.get_supersets_slice(archetype_id, &runtime_group.mask);
+            let supersets = archetypes.get_supersets_with_archetype(archetype_id, &runtime_group.mask, MatchType::Exact);
 
             (0..supersets.len()).for_each(|superset_id| {
                 let superset = &mut supersets[superset_id];
@@ -436,9 +481,63 @@ macro_rules! generate_component_set {
                         }
                     }
                 })*
-            
+
                 superset.len += 1;
             });
+
+            true
+        }
+
+        fn ungroup(
+            entity: Entity,
+            archetypes: &mut ArchetypesManager,
+            storage: &mut ComponentStorage,
+        ) -> bool
+        {
+            let group_mask: GroupMask = Self::group_mask(storage);
+            let groups_option = archetypes.get_supersets(&group_mask, MatchType::Partial);
+            let mut stores = ($(storage.get_storage_mut::<$components>(),)*);
+
+            if groups_option.is_none() {
+                return false;
+            }
+
+            let groups: &mut [RuntimeGroup] = groups_option.unwrap();
+            for group in groups {
+                if !group.mask.intersects(&group_mask) {
+                    break;
+                }
+                let mut has_swaped: bool = false;
+
+
+                $({
+                    let store = &mut stores.$index;
+                    let id_option = store.get_entity_index(entity);
+                    let mut swap_index: usize  = group.len as usize;
+                    let store_len = store.get_entity_count();
+
+                    if store_len <= swap_index {
+                        swap_index = group.len as usize - 1;
+                    }
+
+                    if id_option.is_some_and(|id| id < group.len as usize) {
+                        if let Some(store_entity) = store.get_entity(swap_index) {
+                            let swaped = store.swap::<$components>(store_entity, entity);
+                            let removed = store.remove::<$components>(entity);
+                            has_swaped = swaped && removed.is_some();
+
+                            if !swaped {
+                                panic!("[ungroup] swap failed for component {:?}", TypeId::of::<$components>());
+                            }
+                        }
+                    }
+
+                })*
+
+                if has_swaped {
+                    group.len -= 1;
+                }
+            }
 
             true
         }
@@ -446,6 +545,7 @@ macro_rules! generate_component_set {
     };
 }
 
+generate_component_set!(((A, 0)), 1);
 generate_component_set!(((A, 0), (B, 1)), 2);
 generate_component_set!(((A, 0), (B, 1), (C, 2)), 3);
 generate_component_set!(((A, 0), (B, 1), (C, 2), (D, 3)), 4);

@@ -6,6 +6,14 @@ pub struct Entity {
     pub id: usize,
     pub version: u32,
 }
+impl Entity {
+    pub fn null() -> Entity {
+        Entity {
+            id: 0,
+            version: 0,
+        }
+    }
+}
 impl ID for Entity {
     fn id(&self) -> usize {
         self.id

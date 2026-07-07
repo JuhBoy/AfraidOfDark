@@ -1,15 +1,15 @@
 use bevy_ecs::world;
 
 use crate::engine::ecs::my_ecs::{
-    archetypes::ArchetypesManager,
-    ecs::EntityCreateResult,
-    systems::{make_system, Query, QueryMut, SystemParams},
-};
-use crate::engine::ecs::my_ecs::{
     archetypes::ComponentData,
     components::ComponentStorage,
-    ecs::ECS,
+    ecs::{EntityUpdateResult, ECS},
     systems::{System, SystemUpdate},
+};
+use crate::engine::ecs::my_ecs::{
+    archetypes::{ArchetypesManager, MatchType},
+    ecs::{ECSStats, EntityCreateResult},
+    systems::{make_system, Query, QueryMut, SystemParams},
 };
 use crate::engine::ecs::my_ecs::{
     components::ComponentBufferSparseSet,
@@ -20,7 +20,7 @@ use crate::engine::ecs::my_ecs::{
     ecs::EntityWithGroup,
     utils::{GroupMask, SparseVec},
 };
-use std::{any::TypeId, cell::RefCell, time::SystemTime};
+use std::{any::TypeId, arch, cell::RefCell, time::SystemTime};
 
 pub struct Position {
     pub x: f32,
@@ -228,6 +228,7 @@ pub fn test_ecs_implementation() {
         component_storage: ComponentStorage::new(100),
         update_systems: vec![],
         archetypes: RefCell::new(ArchetypesManager::new()),
+        stats: ECSStats::new(),
     };
 
     // create an entity
@@ -249,22 +250,25 @@ pub fn test_ecs_implementation() {
 
     for i in 0..1000 {
         let ett = ecs.entity_storage.create();
-        let add_pos = ecs.add_component::<Position>(
+        let add_pos = ecs.add_component::<(Position,)>(
             ett,
-            Position {
+            (Position {
                 x: i as f32,
                 y: 0f32,
-            },
+            },),
         );
-        let add_vel = ecs.add_component::<Velocity>(
+        let add_vel = ecs.add_component::<(Velocity,)>(
             ett,
-            Velocity {
+            (Velocity {
                 x: i as f32,
                 y: 0f32,
-            },
+            },),
         );
 
-        if !add_pos || !add_vel {
+        if let EntityUpdateResult::Failed(_) = add_pos {
+            panic!("[Tests] Failled to add components");
+        }
+        if let EntityUpdateResult::Failed(_) = add_vel {
             panic!("[Tests] Failled to add components");
         }
     }
@@ -374,7 +378,7 @@ pub fn test_archetypes_registers() {
 }
 
 #[test]
-pub fn should_flush_archetypes() {
+pub fn test_should_flush_archetypes() {
     let mut manager = ArchetypesManager::new();
     let mut component_storage = ComponentStorage::new(1000);
 
@@ -432,12 +436,13 @@ pub fn should_flush_archetypes() {
 }
 
 #[test]
-pub fn should_find_group_for_queries() {
+pub fn test_should_find_group_for_queries() {
     let mut ecs = ECS {
         entity_storage: EntityStorage::new(2000),
         component_storage: ComponentStorage::new(100),
         update_systems: vec![],
         archetypes: RefCell::new(ArchetypesManager::new()),
+        stats: ECSStats::new(),
     };
 
     const FIRST_GROUP: &[ComponentData] = &[ComponentData::new::<A>(), ComponentData::new::<B>()];
@@ -523,7 +528,7 @@ pub fn should_find_group_for_queries() {
         group_mask.set(ai.index as u8);
         group_mask.set(bi.index as u8);
 
-        let (arch_id, runtime_group) = am.find_archetype_with_group(&group_mask).unwrap();
+        let (arch_id, runtime_group) = am.find_group_exact_match(&group_mask).unwrap();
 
         assert_eq!(0, arch_id, "the archetype id is invalid");
         assert_eq!(
@@ -534,9 +539,13 @@ pub fn should_find_group_for_queries() {
         group_mask.set(ci.index as u8);
         group_mask.set(ei.index as u8);
 
-        let (_, runtime_group) = am.find_archetype_with_group(&group_mask).unwrap();
+        let (_, runtime_group) = am.find_group_exact_match(&group_mask).unwrap();
         assert_eq!(2, runtime_group.len);
     }
+
+    _ = ecs.create((A {}, E {}));
+    _ = ecs.create((A {}, E {}));
+    _ = ecs.create((A {}, E {}));
 
     // assert a group has been found for this query
     let query: Query<(A, B)> = Query::new(&ecs);
@@ -549,6 +558,139 @@ pub fn should_find_group_for_queries() {
     let query: Query<(A, B, C, E)> = Query::new(&ecs);
     assert!(!query.iter().is_empty());
     assert_eq!(2, query.iter().len());
+}
+
+#[test]
+fn test_ungrouping() -> () {
+    let mut ecs = ECS {
+        entity_storage: EntityStorage::new(2000),
+        component_storage: ComponentStorage::new(100),
+        update_systems: vec![],
+        archetypes: RefCell::new(ArchetypesManager::new()),
+        stats: ECSStats::new(),
+    };
+
+    const GROUP_AB: &[ComponentData] = &[ComponentData::new::<A>(), ComponentData::new::<B>()];
+    const GROUP_ABC: &[ComponentData] = &[
+        ComponentData::new::<A>(),
+        ComponentData::new::<B>(),
+        ComponentData::new::<C>(),
+    ];
+
+    // create archetype ==========
+    {
+        let mut archetypes = ecs.archetypes.borrow_mut();
+        let mut result = archetypes.register(GROUP_AB);
+        result &= archetypes.register(GROUP_ABC);
+        assert!(result, "faield to register group AB/C");
+
+        let flush_len = archetypes.flush_archetypes(&mut ecs.component_storage);
+        assert!(flush_len == 1);
+    }
+
+    // prepare masks for abc and ab groups  ======
+    let amask = ecs.component_storage.get_storage_metadata::<A>().index as u8;
+    let bmask = ecs.component_storage.get_storage_metadata::<B>().index as u8;
+    let cmask = ecs.component_storage.get_storage_metadata::<C>().index as u8;
+    let mut mask_abc = GroupMask::new(None);
+    mask_abc.or((1 << amask) | (1 << bmask) | (1 << cmask));
+    let mut mask_ab = GroupMask::new(None);
+    mask_ab.or((1 << amask) | (1 << bmask));
+
+    // create entities ==========
+    let result = ecs.create((A {}, B {}, C {}));
+    let _ = ecs.create((A {}, B {}));
+    let __ = ecs.create((A {}, B {}));
+    let ___ = ecs.create((A {}, B {}));
+    let mut entity: Entity = Entity::null();
+    let mut grouped = false;
+    match result {
+        EntityCreateResult::Grouped(ett_wg) => {
+            grouped = true;
+            entity = ett_wg.entity;
+        }
+        EntityCreateResult::Ungrouped(ett) => {
+            entity = ett;
+        }
+        _ => (),
+    };
+    assert!(grouped, "failed to group entity");
+
+    // test entities ==========
+    {
+        let query: Query<(A, B)> = Query::new(&ecs);
+        let ab_count: usize = query.iter().count();
+        assert!(ab_count == 4);
+        assert!(ecs.stats.borrow().archetypes_broken == 0);
+
+        let has_a = ecs.has_component::<A>(entity);
+        let has_b = ecs.has_component::<B>(entity);
+        assert!(has_a, "has no A component");
+        assert!(has_b, "has no B component");
+    }
+
+    // remove B ======================
+    {
+        let removed = ecs.remove_component::<(B,)>(entity);
+        assert!(
+            removed,
+            "failed to remove component B for entity {:?}",
+            entity
+        );
+        let still_has_b: bool = ecs.has_component::<B>(entity);
+        assert_eq!(false, still_has_b);
+    }
+
+    // test AB group =============
+    {
+        let query: Query<(A, B)> = Query::new(&ecs);
+        let ab_count: usize = query.iter().count();
+        assert_eq!(3, ab_count, "");
+        assert_eq!(ecs.stats.borrow().archetypes_broken, 0, "");
+    }
+
+    // test superset to subset order + check len of groups
+    // [0] A B C
+    // [1] A B
+    {
+        let mut archetypes = ecs.archetypes.borrow_mut();
+        let groups = archetypes.get_supersets_with_archetype(0, &mask_abc, MatchType::Exact);
+
+        assert!(mask_abc.is_match(&groups[0].mask));
+        assert_eq!(0, groups[0].len);
+
+        assert!(mask_ab.is_match(&groups[1].mask));
+        assert_eq!(4, groups[1].len);
+
+        let grouped_etts_len = groups.iter().fold(0, |acc, g| acc + g.len);
+        assert_eq!(grouped_etts_len, 4);
+
+        let ett_has_b = ecs.component_storage.has_component::<B>(entity);
+        assert_eq!(ett_has_b, false);
+    }
+
+    // test entities re-add
+    {
+        let query: Query<(A, C)> = Query::new(&ecs);
+        let count = query.iter().count();
+        assert_eq!(1, count);
+    }
+
+    // test add B again
+    {
+        let b_added_res = ecs.add_component::<(B,)>(entity, (B {},));
+        if let EntityUpdateResult::Failed(_) = b_added_res {
+            assert!(false, "adding B component failed!");
+        }
+        if let EntityUpdateResult::Ungrouped(_) = b_added_res {
+            assert!(false, "adding B component didn't archetype regroup!");
+        }
+
+        let mut archetypes = ecs.archetypes.borrow_mut();
+        let groups = archetypes.get_supersets_with_archetype(0, &mask_abc, MatchType::Exact);
+
+        assert_eq!(1, groups[0].len);
+    }
 }
 
 pub fn iter_test_system(params: &mut SystemParams) {
