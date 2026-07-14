@@ -44,7 +44,7 @@ impl AssetStorage for FileStorage {
 }
 
 impl FileLoadTask<'_> {
-    pub fn new(file_path: &str, storage: Arc<RwLock<StorageServer>>) -> Arc<Mutex<FileLoadTask>> {
+    pub fn new(file_path: &str, storage: Arc<RwLock<StorageServer>>) -> Arc<Mutex<FileLoadTask<'_>>> {
         Arc::from(Mutex::from(FileLoadTask { file_path, storage }))
     }
 }

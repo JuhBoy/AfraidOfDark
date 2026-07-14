@@ -1,10 +1,10 @@
+use super::entities::Entity;
 use crate::engine::ecs::my_ecs::{
     components::{ComponentMetaData, ComponentStorage},
+    ecs::GroupedEntity,
     utils::GroupMask,
 };
 use std::{any::TypeId, cmp::Ordering, marker::PhantomData};
-use std::mem::swap;
-use super::entities::Entity;
 
 // Manager =======================
 //
@@ -159,6 +159,25 @@ impl ArchetypesManager {
         }
 
         None
+    }
+
+    #[must_use]
+    pub fn has_group(&self, mask: &GroupMask) -> bool {
+        for archetype in self.archetypes.iter() {
+            if !archetype.contains(mask) {
+                continue;
+            }
+
+            for group in archetype.groups.iter() {
+                if !group.mask.eq(mask) {
+                    continue;
+                }
+
+                return true;
+            }
+        }
+
+        false
     }
 
     #[must_use]
@@ -402,7 +421,7 @@ pub trait ComponentSet {
     fn insert(entity: &Entity, storage: &mut ComponentStorage, comps: Self) -> bool;
     fn group_mask(storage: &ComponentStorage) -> GroupMask;
     fn group(
-        entity: &Entity,
+        entity: &GroupedEntity,
         archetypes: &mut ArchetypesManager,
         storage: &mut ComponentStorage,
     ) -> bool;
@@ -443,15 +462,25 @@ macro_rules! generate_component_set {
             mask
         }
 
-        fn group(entity: &Entity,
+        fn group(grouped_entity: &GroupedEntity,
           archetypes: &mut ArchetypesManager,
           storage: &mut ComponentStorage,
         ) -> bool {
-            let group_mask = Self::group_mask(storage);
-            let ett_archetype = archetypes.find_group_exact_match(&group_mask);
+            let entity = &grouped_entity.entity;
+            let request_group = Self::group_mask(storage);
+
+            // leave if the entity contains already all groups
+            if request_group.is_match(&grouped_entity.group) {
+                return true;
+            }
+
+            let merged_group = GroupMask::new(Some(grouped_entity.group.get_raw() | request_group.get_raw()));
+            let is_updating = !grouped_entity.group.is_empty();
+
+            let archetype = archetypes.find_group_exact_match(&merged_group);
 
             // it is completely ok to fail grouping when no matching runtime groups exist
-            let Some((archetype_id, runtime_group)) = ett_archetype else {
+            let Some((archetype_id, runtime_group)) = archetype else {
                 {
                     let entity_id = entity.id;
                     println!("entity {entity_id} has no matching group");
@@ -459,31 +488,84 @@ macro_rules! generate_component_set {
                 return false;
             };
 
-            // create tuple to store all storages
-            let mut stores = ($(storage.get_storage_mut::<$components>(),)*);
-            let mut swapping_entities: [Entity; $count] = [*entity; $count];
+            // NOTE(JuH): updating path is way lower in performances because most of the computation is note expanded by the macro
+            if is_updating {
+                let supersets = archetypes.get_supersets_with_archetype(archetype_id, &runtime_group.mask, MatchType::Exact);
+                let mut should_incr = false;
 
-            let supersets = archetypes.get_supersets_with_archetype(archetype_id, &runtime_group.mask, MatchType::Exact);
+                for index in (0..supersets.len()).rev() {
+                    let current_group_len: usize = supersets[index].len as usize;
+                    let mut current_group: GroupMask = supersets[index].mask;
 
-            (0..supersets.len()).for_each(|superset_id| {
-                let superset = &mut supersets[superset_id];
-                let swap_index = superset.len as usize;
+                    while !current_group.is_empty() {
+                        let store_id = {
+                            let id = current_group.least_one() as usize;
+                            id
+                        };
+                        current_group.and(current_group.get_raw() - 1);
 
-                $({
-                    let store = &mut stores.$index;
+                        let mut store = storage.get_storage_mut_by_id(store_id);
+                        let mut entity_pos: usize = store.get_entity_index(*entity).expect("entity is not in the group, this shouldn't be possible");
 
-                    if let Some(store_ett) = store.get_entity(swap_index) {
-                        let swaped = store.swap::<$components>(swapping_entities[$index], store_ett);
-                        swapping_entities[$index] = store_ett;
+                        let curr_group_start: usize = {
+                            let prev = if index == 0 { 0 } else { index - 1 };
+                            let prev_group: Option<&RuntimeGroup> = supersets.get(prev);
+                            prev_group.map_or(0 as usize, |g| g.len as usize)
+                        };
 
-                        if !swaped {
-                            panic!("swap failed for component {:?}", TypeId::of::<$components>());
+                        // align all them at index 0 !!!
+
+                        let is_outside = entity_pos >= current_group_len;
+                        should_incr |= is_outside;
+
+                        if entity_pos <= curr_group_start {
+                            continue;
+                        }
+
+                        if entity_pos >= current_group_len {
+                            let last_ett = store.get_entity(current_group_len).unwrap();
+                            store.swap_untyped(*entity, last_ett);
+                            entity_pos = current_group_len;
+                        }
+
+                        if entity_pos != curr_group_start {
+                            let start_entity = store.get_entity(curr_group_start).unwrap();
+                            store.swap_untyped(*entity, start_entity);
                         }
                     }
-                })*
 
-                superset.len += 1;
-            });
+                    if should_incr {
+                        let runtime_group = &mut supersets[index];
+                        runtime_group.len += 1;
+                    }
+                }
+            } else {
+                // create tuple to store all storages
+                let mut stores = ($(storage.get_storage_mut::<$components>(),)*);
+                let mut swapping_entities: [Entity; $count] = [*entity; $count];
+
+                let supersets = archetypes.get_supersets_with_archetype(archetype_id, &runtime_group.mask, MatchType::Exact);
+
+                (0..supersets.len()).for_each(|superset_id| {
+                    let superset = &mut supersets[superset_id];
+                    let swap_index = superset.len as usize;
+
+                    $({
+                        let store = &mut stores.$index;
+
+                        if let Some(store_ett) = store.get_entity(swap_index) {
+                            let swaped = store.swap::<$components>(swapping_entities[$index], store_ett);
+                            swapping_entities[$index] = store_ett;
+
+                            if !swaped {
+                                panic!("swap failed for component {:?}", TypeId::of::<$components>());
+                            }
+                        }
+                    })*
+
+                    superset.len += 1;
+                });
+            }
 
             true
         }
@@ -496,7 +578,7 @@ macro_rules! generate_component_set {
         {
             let group_mask: GroupMask = Self::group_mask(storage);
             let groups_option = archetypes.get_supersets(&group_mask, MatchType::Partial);
-            let mut stores = ($(storage.get_storage_mut::<$components>(),)*);
+            let mut ungrouped: bool = false;
 
             if groups_option.is_none() {
                 return false;
@@ -504,42 +586,55 @@ macro_rules! generate_component_set {
 
             let groups: &mut [RuntimeGroup] = groups_option.unwrap();
             for group in groups {
+                if group.len == 0 {
+                    continue;
+                }
                 if !group.mask.intersects(&group_mask) {
                     break;
                 }
                 let mut has_swaped: bool = false;
+                let mut all_masks = group.mask;
 
+                while !all_masks.is_empty() {
+                    let store_id = all_masks.least_one() as usize;
+                    all_masks.and(all_masks.get_raw() - 1);
 
-                $({
-                    let store = &mut stores.$index;
-                    let id_option = store.get_entity_index(entity);
-                    let mut swap_index: usize  = group.len as usize;
-                    let store_len = store.get_entity_count();
+                    let mut store = storage.get_storage_mut_by_id(store_id);
+                    let entity_index = store.get_entity_index(entity);
 
-                    if store_len <= swap_index {
-                        swap_index = group.len as usize - 1;
-                    }
+                    if let Some(entity_index) = entity_index {
+                        // NOTE(JuH): the entity is not part of this superset
+                        if entity_index >= group.len as usize {
+                            continue;
+                        }
 
-                    if id_option.is_some_and(|id| id < group.len as usize) {
-                        if let Some(store_entity) = store.get_entity(swap_index) {
-                            let swaped = store.swap::<$components>(store_entity, entity);
-                            let removed = store.remove::<$components>(entity);
-                            has_swaped = swaped && removed.is_some();
+                        let swap_index: usize  = group.len as usize - 1;
 
-                            if !swaped {
-                                panic!("[ungroup] swap failed for component {:?}", TypeId::of::<$components>());
-                            }
+                        if swap_index != entity_index {
+                            let last_entity = store.get_entity(swap_index).unwrap();
+                            has_swaped |= store.swap_untyped(entity, last_entity);
+
+                            println!("swaped entity: {:?}[{}] <-> {:?}[{}] (store: {}, gid: {})", entity, entity_index, last_entity, swap_index, store_id, group.mask.get_raw());
+                        } else {
+                            has_swaped = true;
                         }
                     }
-
-                })*
+                }
 
                 if has_swaped {
+                    println!("reduce group len by 1 for gid: {}", group.mask.get_raw());
                     group.len -= 1;
+                    ungrouped = true;
                 }
             }
 
-            true
+            let mut stores = ($(storage.get_storage_mut::<$components>(),)*);
+            $({
+                let store = &mut stores.$index;
+                let _removed = store.remove::<$components>(entity);
+            })*
+
+            ungrouped
         }
       }
     };

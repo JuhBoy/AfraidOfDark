@@ -1,4 +1,4 @@
-use crate::engine::ecs::my_ecs::utils::{SparseSet, ID};
+use crate::engine::ecs::my_ecs::utils::{GroupMask, SparseSet, ID};
 use std::collections::VecDeque;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -8,10 +8,7 @@ pub struct Entity {
 }
 impl Entity {
     pub fn null() -> Entity {
-        Entity {
-            id: 0,
-            version: 0,
-        }
+        Entity { id: 0, version: 0 }
     }
 }
 impl ID for Entity {
@@ -23,15 +20,40 @@ impl ID for Entity {
     }
 }
 
+pub struct EntityMetadata {
+    pub group_masks: Vec<GroupMask>,
+}
+impl EntityMetadata {
+    pub fn new(capacity: usize) -> Self {
+        let mut meta = Self {
+            group_masks: Vec::with_capacity(capacity),
+        };
+        meta.group_masks
+            .resize_with(capacity, || GroupMask::new(None));
+
+        meta
+    }
+
+    pub fn group(&self, pos: usize) -> Option<&GroupMask> {
+        self.group_masks.get(pos)
+    }
+
+    pub fn group_mut(&mut self, pos: usize) -> Option<&mut GroupMask> {
+        self.group_masks.get_mut(pos)
+    }
+}
+
 pub struct EntityStorage {
     pub entities: SparseSet<Entity>,
     pub allocator: EntityAllocator,
+    pub metadata: EntityMetadata,
 }
 impl EntityStorage {
     pub fn new(capacity: usize) -> Self {
         EntityStorage {
             entities: SparseSet::new::<Entity>(capacity),
             allocator: EntityAllocator::new(),
+            metadata: EntityMetadata::new(capacity),
         }
     }
 
@@ -56,8 +78,41 @@ impl EntityStorage {
         self.allocator.reset();
     }
 
-    pub fn dense_slice(&self) -> &[Entity] { 
+    pub fn dense_slice(&self) -> &[Entity] {
         &self.entities.dense_set
+    }
+
+    /// metadata ===========
+
+    pub fn set_group(&mut self, entity: Entity, mask: GroupMask) -> bool {
+        if !self.entities.has(entity) {
+            return false;
+        }
+
+        let mb_group = self.metadata.group_mut(entity.id);
+
+        if let Some(group_mask) = mb_group {
+            *group_mask = mask;
+            return true;
+        } else {
+            println!("[ERROR] entity overflow metadata capacity")
+        }
+
+        false
+    }
+
+    pub fn get_group(&mut self, entity: Entity) -> Option<GroupMask> {
+        if !self.entities.has(entity) {
+            return None;
+        }
+
+        let mb_group = self.metadata.group(entity.id);
+
+        if let Some(group_mask) = mb_group {
+            return Some(*group_mask);
+        }
+
+        None
     }
 }
 
@@ -111,4 +166,3 @@ impl EntityAllocator {
         self.recycled_indexes.clear();
     }
 }
-

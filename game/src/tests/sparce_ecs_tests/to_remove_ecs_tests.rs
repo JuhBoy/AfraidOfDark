@@ -1,46 +1,39 @@
-use bevy_ecs::world;
-
 use crate::engine::ecs::my_ecs::{
-    archetypes::ComponentData,
+    archetypes::{ComponentData, ComponentSet},
     components::ComponentStorage,
     ecs::{EntityUpdateResult, ECS},
-    systems::{System, SystemUpdate},
-};
-use crate::engine::ecs::my_ecs::{
-    archetypes::{ArchetypesManager, MatchType},
-    ecs::{ECSStats, EntityCreateResult},
-    systems::{make_system, Query, QueryMut, SystemParams},
+    entities::EntityMetadata,
+    systems::SystemUpdate,
 };
 use crate::engine::ecs::my_ecs::{
     components::ComponentBufferSparseSet,
     entities::{Entity, EntityAllocator, EntityStorage},
     utils::{ByteBuffer, SparseSet},
 };
-use crate::engine::ecs::my_ecs::{
-    ecs::EntityWithGroup,
-    utils::{GroupMask, SparseVec},
-};
-use std::{any::TypeId, arch, cell::RefCell, time::SystemTime};
+use crate::engine::ecs::my_ecs::utils::{GroupMask, SparseVec};
+use crate::{engine::ecs::my_ecs::{
+    archetypes::{ArchetypesManager, MatchType}, ecs::{ECSStats, EntityCreateResult}, systems::{make_system, Query, SystemParams},
+}, tests::sparce_ecs_tests::ecs_test_helpers::{create_archetypes, create_ecs, create_entities, A, B, C, D, E, GROUP_AB, GROUP_ABC, GROUP_ABCD, GROUP_ABCDE}};
+use std::{cell::RefCell, time::SystemTime};
 
+#[allow(dead_code)]
 pub struct Position {
     pub x: f32,
     pub y: f32,
 }
 
+#[allow(dead_code)]
 pub struct Velocity {
     pub x: f32,
     pub y: f32,
 }
 
+#[allow(dead_code)]
 pub struct Transform(i32);
+#[allow(dead_code)]
 pub struct Rigidbody2D(i32);
+#[allow(dead_code)]
 pub struct BoxCollider(i32);
-
-pub struct A;
-pub struct B;
-pub struct C;
-pub struct D;
-pub struct E;
 
 #[test]
 pub fn test_entity_storage_implementation() {
@@ -50,6 +43,7 @@ pub fn test_entity_storage_implementation() {
             sparse_views: SparseVec::new(10),
         },
         allocator: EntityAllocator::new(),
+        metadata: EntityMetadata::new(10),
     };
 
     for _i in 0..10 {
@@ -108,6 +102,46 @@ pub fn test_byte_buffer_implementation() {
 
         let vel = velocity.unwrap();
         assert_eq!(vel.x, i as f32 * 1.0);
+    }
+
+    // testing swap component and none
+    {
+        for i in 0..100 {
+            let velocity = buffer.get_mut_ref::<Velocity>(i);
+            velocity.unwrap().x = i as f32;
+        }
+
+        // swap using compile time generic type
+        //
+        let swaped = buffer.swap::<Velocity>(0, 99);
+        assert!(swaped);
+
+        let zero = buffer.get_ref::<Velocity>(0);
+        let last = buffer.get_ref::<Velocity>(99);
+
+        assert_eq!(99, zero.unwrap().x as usize);
+        assert_eq!(0, last.unwrap().x as usize);
+
+        // swap using type_info data
+        //
+        let swaped: bool = buffer.swap_untyped(0, 99);
+        assert!(swaped);
+
+        let zero = buffer.get_ref::<Velocity>(0);
+        let last = buffer.get_ref::<Velocity>(99);
+
+        assert_eq!(
+            0,
+            zero.unwrap().x as usize,
+            "invalid value: {}",
+            zero.unwrap().x
+        );
+        assert_eq!(
+            99,
+            last.unwrap().x as usize,
+            "invalid value: {}",
+            last.unwrap().x
+        );
     }
 
     buffer.clear::<Velocity>();
@@ -552,7 +586,7 @@ pub fn test_should_find_group_for_queries() {
     let iter = query.iter();
     assert!(iter.group.is_some());
 
-    let iterated_entities = iter.fold(0, |acc, (_a, _b)| acc + 1);
+    let iterated_entities = iter.fold(0, |acc, (_ett, _a, _b)| acc + 1);
     assert_eq!(7, iterated_entities);
 
     let query: Query<(A, B, C, E)> = Query::new(&ecs);
@@ -562,31 +596,10 @@ pub fn test_should_find_group_for_queries() {
 
 #[test]
 fn test_ungrouping() -> () {
-    let mut ecs = ECS {
-        entity_storage: EntityStorage::new(2000),
-        component_storage: ComponentStorage::new(100),
-        update_systems: vec![],
-        archetypes: RefCell::new(ArchetypesManager::new()),
-        stats: ECSStats::new(),
-    };
-
-    const GROUP_AB: &[ComponentData] = &[ComponentData::new::<A>(), ComponentData::new::<B>()];
-    const GROUP_ABC: &[ComponentData] = &[
-        ComponentData::new::<A>(),
-        ComponentData::new::<B>(),
-        ComponentData::new::<C>(),
-    ];
+    let mut ecs = create_ecs();
 
     // create archetype ==========
-    {
-        let mut archetypes = ecs.archetypes.borrow_mut();
-        let mut result = archetypes.register(GROUP_AB);
-        result &= archetypes.register(GROUP_ABC);
-        assert!(result, "faield to register group AB/C");
-
-        let flush_len = archetypes.flush_archetypes(&mut ecs.component_storage);
-        assert!(flush_len == 1);
-    }
+    create_archetypes(&mut ecs, vec![GROUP_ABC, GROUP_AB]);
 
     // prepare masks for abc and ab groups  ======
     let amask = ecs.component_storage.get_storage_metadata::<A>().index as u8;
@@ -598,13 +611,13 @@ fn test_ungrouping() -> () {
     mask_ab.or((1 << amask) | (1 << bmask));
 
     // create entities ==========
-    let result = ecs.create((A {}, B {}, C {}));
-    let _ = ecs.create((A {}, B {}));
-    let __ = ecs.create((A {}, B {}));
-    let ___ = ecs.create((A {}, B {}));
+    let entity_abc = ecs.create((A {}, B {}, C {}));
+    let _entity_ab_1 = ecs.create((A {}, B {}));
+    let _entity_ab_2 = ecs.create((A {}, B {}));
+    let entity_ab_3 = ecs.create((A {}, B {}));
     let mut entity: Entity = Entity::null();
     let mut grouped = false;
-    match result {
+    match entity_abc {
         EntityCreateResult::Grouped(ett_wg) => {
             grouped = true;
             entity = ett_wg.entity;
@@ -639,10 +652,48 @@ fn test_ungrouping() -> () {
         );
         let still_has_b: bool = ecs.has_component::<B>(entity);
         assert_eq!(false, still_has_b);
+        assert_eq!(5, ecs.entity_storage.get_group(entity).unwrap().get_raw()); // 5 => 0101 or A and C comps
+
+        let a_stre = ecs.component_storage.get_storage::<A>();
+        let ett_index = a_stre.get_entity_index(entity);
+        assert_eq!(3, ett_index.unwrap());
+
+        if let EntityCreateResult::Grouped(ab_3) = entity_ab_3 {
+            assert_eq!(0, a_stre.get_entity_index(ab_3.entity).unwrap());
+        } else {
+            assert!(false, "entity ab_3 was not grouped")
+        }
+    }
+
+    // test every individual queries after remove
+    {
+        let query_a: Query<(A,)> = Query::new(&ecs);
+        let query_b: Query<(B,)> = Query::new(&ecs);
+        let query_c: Query<(C,)> = Query::new(&ecs);
+
+        let c_a = query_a.iter().count();
+        let c_b = query_b.iter().count();
+        let c_c = query_c.iter().count();
+
+        assert_eq!(4, c_a);
+        assert_eq!(3, c_b);
+        assert_eq!(1, c_c);
+
+        assert_eq!(ecs.stats.borrow().archetypes_broken, 0, "");
     }
 
     // test AB group =============
     {
+        {
+            let mut archetypes = ecs.archetypes.borrow_mut();
+            let groups = archetypes.get_supersets_with_archetype(0, &mask_abc, MatchType::Exact);
+
+            assert!(mask_ab.is_match(&groups[1].mask));
+            assert_eq!(3, groups[1].len);
+        }
+
+        ecs.stats.borrow_mut().archetypes_broken = 0;
+
         let query: Query<(A, B)> = Query::new(&ecs);
         let ab_count: usize = query.iter().count();
         assert_eq!(3, ab_count, "");
@@ -660,10 +711,10 @@ fn test_ungrouping() -> () {
         assert_eq!(0, groups[0].len);
 
         assert!(mask_ab.is_match(&groups[1].mask));
-        assert_eq!(4, groups[1].len);
+        assert_eq!(3, groups[1].len);
 
         let grouped_etts_len = groups.iter().fold(0, |acc, g| acc + g.len);
-        assert_eq!(grouped_etts_len, 4);
+        assert_eq!(grouped_etts_len, 3);
 
         let ett_has_b = ecs.component_storage.has_component::<B>(entity);
         assert_eq!(ett_has_b, false);
@@ -676,9 +727,36 @@ fn test_ungrouping() -> () {
         assert_eq!(1, count);
     }
 
+    // test storage access by group mask
+    {
+        let mut store_found_abc = 0;
+        let mut store_found_ab = 0;
+        ecs.component_storage
+            .it_storages_by_mask_mut(mask_abc, |_store| {
+                store_found_abc += 1;
+            });
+        ecs.component_storage
+            .it_storages_by_mask_mut(mask_ab, |_store| {
+                store_found_ab += 1;
+            });
+
+        assert_eq!(3, store_found_abc);
+        assert_eq!(2, store_found_ab);
+    }
+
     // test add B again
     {
+        {
+            let mut archetypes = ecs.archetypes.borrow_mut();
+            let groups = archetypes.get_supersets_with_archetype(0, &mask_abc, MatchType::Exact);
+
+            assert_eq!(0, groups[0].len);
+            assert_eq!(3, groups[1].len);
+        }
+
         let b_added_res = ecs.add_component::<(B,)>(entity, (B {},));
+        assert_eq!(mask_abc, ecs.entity_storage.get_group(entity).unwrap());
+
         if let EntityUpdateResult::Failed(_) = b_added_res {
             assert!(false, "adding B component failed!");
         }
@@ -686,25 +764,176 @@ fn test_ungrouping() -> () {
             assert!(false, "adding B component didn't archetype regroup!");
         }
 
-        let mut archetypes = ecs.archetypes.borrow_mut();
-        let groups = archetypes.get_supersets_with_archetype(0, &mask_abc, MatchType::Exact);
+        {
+            let mut archetypes = ecs.archetypes.borrow_mut();
+            let groups = archetypes.get_supersets_with_archetype(0, &mask_abc, MatchType::Exact);
 
-        assert_eq!(1, groups[0].len);
+            assert_eq!(1, groups[0].len);
+            assert_eq!(4, groups[1].len);
+        }
+
+        {
+            let query_abc: Query<(A, B, C)> = Query::new(&ecs);
+            let query_ab: Query<(A, B)> = Query::new(&ecs);
+
+            let abc = query_abc.iter().count();
+            let ab = query_ab.iter().count();
+
+            assert_eq!(1, abc);
+            assert_eq!(4, ab);
+
+            assert_eq!(ecs.stats.borrow().archetypes_broken, 0, "");
+        }
     }
 }
 
+#[test]
+pub fn test_entity_overflow_grouping() {
+    let mut ecs = create_ecs();
+    create_archetypes(&mut ecs, vec![GROUP_ABCDE, GROUP_ABCD, GROUP_ABC, GROUP_AB]);
+
+    // NOTE(JuH): 15A, 12B, 2C
+    let a_etts = create_entities(&mut ecs, 3, &(A,));
+    let ab_etts = create_entities(&mut ecs, 10, &(A, B));
+    let abc_etts = create_entities(&mut ecs, 2, &(A, B, C));
+    let abcd_etts = create_entities(&mut ecs, 5, &(A, B, C, D));
+
+    // assert entity are very far
+    {
+        let store = ecs.component_storage.get_storage::<A>();
+        let index = store.get_entity_index(a_etts[2].entity).unwrap();
+        assert!(
+            index
+                > a_etts
+                    .len()
+                    .max(ab_etts.len())
+                    .max(abc_etts.len())
+                    .max(abcd_etts.len())
+        );
+    }
+
+    // add a new ABC entity to the group
+    {
+        let new_abc_ett: Entity = a_etts.last().unwrap().entity;
+        let result = ecs.add_component::<(B, C)>(new_abc_ett, (B {}, C {}));
+
+        match result {
+            EntityUpdateResult::Failed(fail_msg) => assert!(false, "{}", fail_msg),
+            EntityUpdateResult::Grouped(grouped_entity) => {
+                assert_eq!(7, grouped_entity.group.get_raw())
+            }
+            EntityUpdateResult::Ungrouped(entity) => {
+                assert!(false, "failed to group entity in ABC {:?}", entity)
+            }
+        }
+
+        let query_abc: Query<(A, B, C)> = Query::new(&ecs);
+        let query_ab: Query<(A, B)> = Query::new(&ecs);
+
+        assert_eq!(8, query_abc.iter().count());
+        assert_eq!(18, query_ab.iter().count());
+
+        let brokens = ecs.stats.borrow().archetypes_broken;
+        assert_eq!(0, brokens);
+    }
+
+    // remove AB entities
+    {
+        for grouped_entity in ab_etts.iter() {
+            let r = ecs.remove_component::<(A, B)>(grouped_entity.entity);
+            assert!(
+                r,
+                "could not remove AB components to entity {:?}",
+                grouped_entity.entity
+            );
+        }
+
+        let query_abcd: Query<(A, B, C, D)> = Query::new(&ecs);
+        let query_abc: Query<(A, B, C)> = Query::new(&ecs);
+        let query_ab: Query<(A, B)> = Query::new(&ecs);
+
+        assert_eq!(8, query_ab.iter().count());
+        assert_eq!(8, query_abc.iter().count());
+        assert_eq!(5, query_abcd.iter().count());
+
+        let brokens = ecs.stats.borrow().archetypes_broken;
+        assert_eq!(0, brokens);
+    }
+
+    // check layout
+    {
+        let store_a = ecs.component_storage.get_storage::<A>();
+        let store_b = ecs.component_storage.get_storage::<B>();
+        let store_c = ecs.component_storage.get_storage::<C>();
+        let store_d = ecs.component_storage.get_storage::<D>();
+
+        for ett in abcd_etts.iter() {
+            let i_a = store_a.get_entity_index(ett.entity).unwrap();
+            let i_b = store_b.get_entity_index(ett.entity).unwrap();
+            let i_c = store_c.get_entity_index(ett.entity).unwrap();
+            let i_d = store_d.get_entity_index(ett.entity).unwrap();
+
+            assert!(
+                (i_a == i_b && i_b == i_c && i_c == i_d),
+                "abcd layout is invalid"
+            );
+        }
+        for ett in abc_etts.iter() {
+            let i_a = store_a.get_entity_index(ett.entity).unwrap();
+            let i_b = store_b.get_entity_index(ett.entity).unwrap();
+            let i_c = store_c.get_entity_index(ett.entity).unwrap();
+
+            assert!((i_a == i_b && i_b == i_c), "abcd layout is invalid");
+        }
+        for ett in ab_etts.iter() {
+            let a = store_a.get_entity_index(ett.entity).map_or(30000, |e| e);
+            let b = store_b.get_entity_index(ett.entity).map_or(30000, |e| e);
+
+            assert!(a == b, "abcd layout is invalid");
+        }
+    }
+}
+
+#[test]
+pub fn test_layout_sync_when_group_overlaps() {
+    let mut ecs = create_ecs();
+    create_archetypes(&mut ecs, vec![GROUP_ABCDE, GROUP_ABCD, GROUP_ABC, GROUP_AB]);
+
+    let ab_etts = create_entities(&mut ecs, 10, &(A, B));
+    let _abc_etts = create_entities(&mut ecs, 2, &(A, B, C));
+
+    for ett in ab_etts.iter() {
+        let result = ecs.add_component::<(C,)>(ett.entity, (C {},));
+        match result {
+            EntityUpdateResult::Failed(_) => assert!(false),
+            EntityUpdateResult::Grouped(grouped_entity) => {
+                assert_eq!(7, grouped_entity.group.get_raw())
+            }
+            EntityUpdateResult::Ungrouped(_entity) => assert!(false),
+        }
+    }
+
+    let query_abc: Query<(A, B, C)> = Query::new(&ecs);
+    let query_ab: Query<(A, B)> = Query::new(&ecs);
+
+    assert_eq!(12, query_ab.iter().count());
+    assert_eq!(12, query_abc.iter().count());
+    assert_eq!(0, ecs.stats.borrow().archetypes_broken);
+}
+
+#[allow(dead_code)]
 pub fn iter_test_system(params: &mut SystemParams) {
     let mut query: Query<(Position, Velocity)> = Query::new(params.world);
 
-    for (pos, vel) in query.iter() {
-        // println!("{}", pos.x);
-        // println!("{}", vel.x);
+    for (_ett, pos, vel) in query.iter() {
+        println!("{}", pos.x);
+        println!("{}", vel.x);
     }
 
-    for (pos, vel) in query.iter_mut() {
+    for (_ett, pos, vel) in query.iter_mut() {
         pos.x = 125f32;
         vel.x = 125f32;
-        // println!("{}", pos.x);
-        // println!("{}", vel.x);
+        println!("{}", pos.x);
+        println!("{}", vel.x);
     }
 }

@@ -7,6 +7,7 @@ use crate::engine::ecs::my_ecs::archetypes::{
 use crate::engine::ecs::my_ecs::components::{ComponentMetaData, ComponentStorage};
 use crate::engine::ecs::my_ecs::entities::{Entity, EntityStorage};
 use crate::engine::ecs::my_ecs::systems::{System, SystemParams, TSystem};
+use crate::engine::ecs::my_ecs::utils::ID;
 
 use super::archetypes::ComponentSet;
 use super::utils::GroupMask;
@@ -25,19 +26,31 @@ impl ECSStats {
 #[derive(PartialEq)]
 pub enum EntityCreateResult {
     Failed(String),
-    Grouped(EntityWithGroup),
+    Grouped(GroupedEntity),
     Ungrouped(Entity),
 }
 #[derive(PartialEq)]
 pub enum EntityUpdateResult {
     Failed(String),
-    Grouped(EntityWithGroup),
+    Grouped(GroupedEntity),
     Ungrouped(Entity),
 }
 #[derive(PartialEq)]
-pub struct EntityWithGroup {
+pub struct GroupedEntity {
     pub group: GroupMask,
     pub entity: Entity,
+}
+impl GroupedEntity {
+    pub fn default(entity: Entity) -> Self {
+        Self {
+            entity: entity,
+            group: GroupMask::new(None),
+        }
+    }
+
+    pub fn from(entity: Entity, group: GroupMask) -> Self {
+        Self { entity, group }
+    }
 }
 pub struct ECS {
     pub entity_storage: EntityStorage,
@@ -103,33 +116,59 @@ impl ECS {
             return EntityUpdateResult::Failed(error);
         }
 
-        let _group_result = TCompSet::group(&entity, &mut arch_manager, storage);
+        let group = self
+            .entity_storage
+            .get_group(entity)
+            .map_or(GroupMask::new(None), |g| g);
+        let _group_result = TCompSet::group(
+            &GroupedEntity::from(entity, group),
+            &mut arch_manager,
+            storage,
+        );
 
-        // @todo: see later how this should be used to debug easily
-        #[cfg(debug_ecs)]
+        let mut requested_group = TCompSet::group_mask(&storage);
+
+        // update group for entity metadata
         {
-            println!("entity grouped on add component ? {}", _group_result);
+            let current_group: GroupMask = self
+                .entity_storage
+                .get_group(entity)
+                .map_or(GroupMask::new(None), |f| f);
+
+            requested_group.or(current_group.get_raw());
+            self.entity_storage.set_group(entity, requested_group);
         }
 
-        let group_mask = TCompSet::group_mask(&storage);
-
-        return match _group_result {
-            true => EntityUpdateResult::Grouped(EntityWithGroup {
-                group: group_mask,
+        match _group_result {
+            true => EntityUpdateResult::Grouped(GroupedEntity {
+                group: requested_group,
                 entity: entity,
             }),
             _ => EntityUpdateResult::Ungrouped(entity),
-        };
+        }
     }
 
-    pub fn remove_component<T>(&mut self, entity: Entity) -> bool
+    pub fn remove_component<TCompSet>(&mut self, entity: Entity) -> bool
     where
-        T: ComponentSet + 'static,
+        TCompSet: ComponentSet + 'static,
     {
         let storage = &mut self.component_storage;
         let mut archetype = self.archetypes.borrow_mut();
 
-        let ungrouped = T::ungroup(entity, &mut archetype, storage);
+        let ungrouped = TCompSet::ungroup(entity, &mut archetype, storage);
+
+        if ungrouped {
+            let mb_group = self.entity_storage.get_group(entity);
+
+            if let Some(mut current_mask) = mb_group {
+                let exclusive_mask = TCompSet::group_mask(storage);
+                current_mask.excludes(&exclusive_mask);
+
+                self.entity_storage.set_group(entity, current_mask);
+            }
+        } else {
+            panic!("weird, an entity got ungrouped but has no group mask; is there an issue with group attribution ?")
+        }
 
         ungrouped
     }
@@ -154,36 +193,42 @@ impl ECS {
         flushed
     }
 
-    pub fn create<A>(&mut self, comps: A) -> EntityCreateResult
+    pub fn create<TCompSet>(&mut self, comps: TCompSet) -> EntityCreateResult
     where
-        A: ComponentSet + 'static,
+        TCompSet: ComponentSet + 'static,
     {
         let entity = self.entity_storage.create();
 
-        let inserted: bool = A::insert(&entity, &mut self.component_storage, comps);
+        let inserted: bool = TCompSet::insert(&entity, &mut self.component_storage, comps);
         if !inserted {
             let error = format!(
                 "failed to insert entity, ensure components have storages (comps: {:?})",
-                TypeId::of::<A>(),
+                TypeId::of::<TCompSet>(),
             );
 
             self.entity_storage.remove(entity);
             return EntityCreateResult::Failed(error);
         }
 
-        let entity_group_mask: GroupMask = A::group_mask(&self.component_storage);
-        let grouped: bool = A::group(
-            &entity,
+        let group_mask: GroupMask = TCompSet::group_mask(&self.component_storage);
+        let grouped: bool = TCompSet::group(
+            &GroupedEntity::default(entity),
             &mut self.archetypes.borrow_mut(),
             &mut self.component_storage,
         );
+        self.entity_storage.set_group(entity, group_mask);
 
         match grouped {
-            true => EntityCreateResult::Grouped(EntityWithGroup {
-                group: entity_group_mask,
-                entity,
-            }),
-            _ => EntityCreateResult::Ungrouped(entity),
+            true => {
+                return EntityCreateResult::Grouped(GroupedEntity {
+                    group: group_mask,
+                    entity,
+                });
+            }
+            _ => {
+                // do something
+                return EntityCreateResult::Ungrouped(entity);
+            }
         }
     }
 }

@@ -3,7 +3,6 @@ use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
 use crate::engine::ecs::my_ecs::entities::Entity;
 use crate::engine::ecs::my_ecs::utils::{ByteBuffer, GroupMask, SparseVec, SparseView, ID};
 use std::any::TypeId;
-use std::cell::{RefCell, RefMut};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
@@ -123,6 +122,42 @@ impl ComponentBufferSparseSet {
         true
     }
 
+    pub fn swap_untyped(&mut self, ett_source: Entity, ett_dest: Entity) -> bool {
+        let Some(view_source) = self.entities.get(ett_source.id(), ett_source.version()) else {
+            return false;
+        };
+        let Some(view_dest) = self.entities.get(ett_dest.id(), ett_dest.version()) else {
+            return false;
+        };
+
+        // swap components stored in memory buffer
+        if !self.component_buffer.swap_untyped(view_source, view_dest) {
+            return false;
+        }
+
+        // swap entity_to_component for archetypes, they are stored in order
+        self.entity_to_component.swap(view_source, view_dest);
+
+        let source_index = view_source;
+        let dest_index = view_dest;
+
+        let source = self
+            .entities
+            .get_unchecked_mut(ett_source.id())
+            .as_mut()
+            .unwrap();
+        source.index = dest_index;
+
+        let dest = self
+            .entities
+            .get_unchecked_mut(ett_dest.id())
+            .as_mut()
+            .unwrap();
+        dest.index = source_index;
+
+        true
+    }
+
     pub fn get_entity(&self, position: usize) -> Option<Entity> {
         let entity = self.entity_to_component.get(position);
         entity.copied()
@@ -148,15 +183,43 @@ pub struct ComponentMetaData {
     pub mask: GroupMask, // all the group containing this component
 }
 
+pub struct StoreIteratorContainer {
+    pub last_position: usize,
+    pub container: Vec<usize>, // sotre indexes !
+}
+impl StoreIteratorContainer {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            last_position: 0,
+            container: Vec::with_capacity(capacity),
+        }
+    }
+
+    pub fn push(&mut self, val: usize) {
+        self.container.push(val)
+    }
+
+    pub fn clear(&mut self) {
+        self.container.clear()
+    }
+
+    pub fn slice_ref(&self) -> &[usize] {
+        &self.container[0..self.last_position]
+    }
+}
+
 pub struct ComponentStorage {
     pub(crate) storages_index_by_type_id: HashMap<TypeId, ComponentMetaData>,
     pub(crate) storages: Vec<AtomicRefCell<ComponentBufferSparseSet>>,
+
+    iterator_container: StoreIteratorContainer,
 }
 impl ComponentStorage {
     pub fn new(capacity: usize) -> Self {
         ComponentStorage {
             storages_index_by_type_id: HashMap::with_capacity(capacity),
             storages: Vec::with_capacity(capacity),
+            iterator_container: StoreIteratorContainer::new(capacity),
         }
     }
 
@@ -200,7 +263,7 @@ impl ComponentStorage {
         store.insert::<T>(entity, comp)
     }
 
-    pub fn get_storage<T>(&self) -> AtomicRef<ComponentBufferSparseSet>
+    pub fn get_storage<T>(&'_ self) -> AtomicRef<'_, ComponentBufferSparseSet>
     where
         T: 'static,
     {
@@ -208,7 +271,7 @@ impl ComponentStorage {
         self.storages[self.storages_index_by_type_id[&component_type_id].index].borrow()
     }
 
-    pub fn get_storage_mut<T>(&self) -> AtomicRefMut<ComponentBufferSparseSet>
+    pub fn get_storage_mut<T>(&'_ self) -> AtomicRefMut<'_, ComponentBufferSparseSet>
     where
         T: 'static,
     {
@@ -226,7 +289,7 @@ impl ComponentStorage {
             let store = self.storages[metadata.index].borrow();
             return store.has(entity);
         }
-        
+
         false
     }
 
@@ -236,6 +299,37 @@ impl ComponentStorage {
 
     pub fn get_storage_by_id(&self, index: usize) -> AtomicRef<ComponentBufferSparseSet> {
         self.storages[index].borrow()
+    }
+
+    pub fn it_storages_by_mask_mut<TCallback>(
+        &self,
+        mut mask: GroupMask,
+        mut it_callback: TCallback,
+    ) where
+        TCallback: FnMut(AtomicRefMut<ComponentBufferSparseSet>),
+    {
+        while !mask.is_empty() {
+            let next_index = mask.least_one() as usize;
+
+            let storage_ref: AtomicRefMut<ComponentBufferSparseSet> =
+                self.storages[next_index].borrow_mut();
+            it_callback(storage_ref);
+
+            mask.and(mask.get_raw() - 1);
+        }
+    }
+
+    pub fn storage_ids_by_mask(&mut self, mut mask: GroupMask) -> &[usize] {
+        self.iterator_container.clear();
+
+        while !mask.is_empty() {
+            let index = mask.least_one() as usize;
+            mask.and(mask.get_raw() - 1);
+            self.iterator_container.push(index);
+        }
+
+        // returns from [0, last_pos] slice
+        self.iterator_container.slice_ref()
     }
 
     pub fn get_storage_metadata<T>(&self) -> ComponentMetaData

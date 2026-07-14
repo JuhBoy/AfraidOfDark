@@ -1,2 +1,2 @@
 mod polylines_tests;
-mod ecs_tests;
+mod sparce_ecs_tests;

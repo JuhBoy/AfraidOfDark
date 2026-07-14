@@ -40,14 +40,14 @@ pub struct StorageViewMut<'a, T> {
 }
 
 macro_rules! generate_query {
-    ( $(($components:tt, $index:tt)),*) => {
-      impl<$($components),*> TQuery for ($($components),*)
+    ( $( ($components:tt, $index:tt) ),+) => {
+      impl<$($components),*> TQuery for ($($components,)*)
       where $($components: 'static),* {
 
-          type ViewMut<'a> = ($(StorageView<'a, $components>),*);
-          type View<'a> = ($(StorageView<'a, $components>),*);
-          type Item<'a> = ($(&'a $components),*);
-          type ItemMut<'a> = ($(&'a mut $components),*);
+          type ViewMut<'a> = ($(StorageView<'a, $components>,)*);
+          type View<'a> = ($(StorageView<'a, $components>,)*);
+          type Item<'a> = (Entity, $(&'a $components,)*);
+          type ItemMut<'a> = (Entity, $(&'a mut $components,)*);
           type Iter<'a> = Iter<'a, Self::Item<'a>>;
 
         fn borrow_storage(world: &ECS) -> Self::View<'_> {
@@ -58,9 +58,8 @@ macro_rules! generate_query {
                     StorageView {
                         store: world.component_storage.get_storage_metadata::<$components>(),
                         _phantom: PhantomData,
-                    }
-
-                ),*
+                    },
+                )*
             )
         }
 
@@ -72,8 +71,8 @@ macro_rules! generate_query {
                     StorageView {
                         store: world.component_storage.get_storage_metadata::<$components>(),
                         _phantom: PhantomData,
-                    }
-                ),*
+                    },
+                )*
             )
         }
 
@@ -81,7 +80,7 @@ macro_rules! generate_query {
             world: &'a ECS,
             views: &Self::View<'_>,
         ) -> (Option<RuntimeGroup>, &'a [Entity]) {
-            let stores_length = ($(world.component_storage.get_storage_by_id(views.$index.store.index).entity_to_component.len()),*);
+            let stores_length = ($(world.component_storage.get_storage_by_id(views.$index.store.index).entity_to_component.len(),)*);
 
             let min_store_id = {
                 let mut min_length = usize::MAX;
@@ -124,8 +123,10 @@ macro_rules! generate_query {
                 group
             };
 
+            // NOTE(JuH): either take the buffer len or the group len if any
+            let entities_len = group.map_or(store.component_buffer.len, |g| g.len as usize);
             unsafe {
-                let etts: &'a [Entity] = std::slice::from_raw_parts(entities, store.entity_to_component.len());
+                let etts: &'a [Entity] = std::slice::from_raw_parts(entities, entities_len);
                 (group, etts)
             }
         }
@@ -144,11 +145,11 @@ macro_rules! generate_query {
             let comps = ($(
                 world.component_storage
                     .get_storage_by_id(view.$index.store.index)
-                    .get::<$components>(entity).unwrap() as *const $components
-            ),*);
+                    .get::<$components>(entity).unwrap() as *const $components,
+            )*);
 
             unsafe {
-                ($(&*comps.$index),*)
+                (entity, $(&*comps.$index,)*)
             }
         }
 
@@ -160,17 +161,18 @@ macro_rules! generate_query {
             let components = ($(
                 world.component_storage
                     .get_storage_mut_by_id(view.$index.store.index)
-                    .get_mut::<$components>(entity).unwrap() as *mut $components
-            ),*);
+                    .get_mut::<$components>(entity).unwrap() as *mut $components,
+            )*);
 
             unsafe {
-                ($(&mut *components.$index),*)
+                (entity, $(&mut *components.$index,)*)
             }
         }
       }
     };
 }
 
+generate_query!((A, 0));
 generate_query!((A, 0), (B, 1));
 generate_query!((A, 0), (B, 1), (C, 2));
 generate_query!((A, 0), (B, 1), (C, 2), (D, 3));

@@ -1,0 +1,9 @@
+mod archetypes_and_groups;
+mod components_crud;
+mod consistency_stress;
+mod ecs_test_helpers;
+mod entity_lifecycle_generation;
+mod queries_correctness;
+mod sparse_sets;
+mod to_remove_ecs_tests;
+mod world_components_registration;

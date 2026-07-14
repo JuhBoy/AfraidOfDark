@@ -1,6 +1,7 @@
 use std::alloc::{alloc, dealloc, Layout};
+use std::any::TypeId;
 use std::cmp::max;
-use std::ptr::NonNull;
+use std::ptr::{self, NonNull};
 
 pub trait ID {
     fn id(&self) -> usize;
@@ -14,10 +15,20 @@ pub struct ByteBuffer {
     pub data: NonNull<u8>,
     pub len: usize,
     pub capacity: usize,
+
+    type_info: ByteBufferTypeInfo,
+}
+
+pub struct ByteBufferTypeInfo {
+    pub type_id: TypeId,
+    pub bytes_len: usize,
 }
 
 impl ByteBuffer {
-    pub fn with_capacity<T>(capacity: usize) -> Option<Self> {
+    pub fn with_capacity<T>(capacity: usize) -> Option<Self>
+    where
+        T: 'static,
+    {
         let layout: Layout = Layout::array::<T>(capacity).unwrap();
 
         let n = unsafe { alloc(layout) };
@@ -27,6 +38,10 @@ impl ByteBuffer {
             data: nn,
             len: 0,
             capacity,
+            type_info: ByteBufferTypeInfo {
+                type_id: TypeId::of::<T>(),
+                bytes_len: size_of::<T>(),
+            },
         })
     }
 
@@ -69,6 +84,23 @@ impl ByteBuffer {
             let ptr = self.data.as_ptr().cast::<T>().add(index_a);
             let ptr_b = self.data.as_ptr().cast::<T>().add(index_b);
             ptr.swap(ptr_b);
+        }
+
+        true
+    }
+
+    pub fn swap_untyped(&mut self, index_a: usize, index_b: usize) -> bool {
+        if index_a >= self.len || index_b >= self.len {
+            return false;
+        }
+
+        unsafe {
+            // NOTE(JuH): add() works here becase the pointer is u8 type, if not use bytes_add() instead
+            let ptr_a = self.data.as_ptr().add(index_a * self.type_info.bytes_len);
+            let ptr_b = self.data.as_ptr().add(index_b * self.type_info.bytes_len);
+
+            // NOTE(JuH): this move the memory region, swap() in the other hand (without the type known) will move only on u8 aka byte
+            ptr::swap_nonoverlapping(ptr_a, ptr_b, self.type_info.bytes_len);
         }
 
         true
@@ -298,6 +330,10 @@ impl GroupMask {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.mask == 0
+    }
+
     pub fn get_raw(&self) -> u64 {
         self.mask
     }
@@ -337,5 +373,23 @@ impl GroupMask {
 
     pub fn is_superset_of(&self, other: &GroupMask) -> bool {
         (self.mask & other.mask) == other.mask
+    }
+
+    #[inline(always)]
+    pub fn least_one(&self) -> u8 {
+        #[cfg(TODO_PANIC_ON_NUMERIC_INVALIDS)]
+        {
+            if self.is_empty() {
+                panic!("cttz will be poisoned by 0 values, it can't find any 1s bit set");
+            }
+        }
+
+        // NOTE(JuH): this call cttz behind the hood, it resolves in 1 CPU cycle most of the time (x86-64) and 2 on Arch
+        self.mask.trailing_zeros() as u8
+    }
+
+    pub fn excludes(&mut self, other: &GroupMask) {
+        let other_inverse = !other.get_raw();
+        self.mask &= other_inverse;
     }
 }

@@ -5,7 +5,6 @@ use crate::uuid::Uuid;
 use crate::{storage_server::StorageServer, MonoThreadFifoExecutor};
 use std::any::TypeId;
 use std::collections::HashMap;
-use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 
