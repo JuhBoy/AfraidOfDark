@@ -77,6 +77,26 @@ fn inserted_component_can_be_mutably_accessed() {
         panic!("failed to created entity with component AData");
     };
 
+    let mut binding = ecs.component_storage.get_storage_mut::<AData>();
+    let comp = binding.get_mut::<AData>(entity);
+    assert!(comp.is_some());
+
+    let comp: &mut AData = comp.unwrap();
+    assert_eq!(42, comp.0);
+}
+
+// Verifies that mutations made through a mutable component reference persist.
+#[test]
+fn component_mutation_persists() {
+    let mut ecs = create_ecs();
+    ecs.allocate_storage::<AData>();
+
+    let entity = ecs.create::<(AData,)>((AData(42),));
+
+    let EntityCreateResult::Ungrouped(entity) = entity else {
+        panic!("failed to created entity with component AData");
+    };
+
     {
         let mut binding = ecs.component_storage.get_storage_mut::<AData>();
         let comp = binding.get_mut::<AData>(entity);
@@ -90,10 +110,6 @@ fn inserted_component_can_be_mutably_accessed() {
     let binding = ecs.component_storage.get_storage::<AData>();
     assert_eq!(84, binding.get::<AData>(entity).unwrap().0);
 }
-
-// Verifies that mutations made through a mutable component reference persist.
-#[test]
-fn component_mutation_persists() {}
 
 // Verifies that checking for an existing component returns true.
 #[test]
