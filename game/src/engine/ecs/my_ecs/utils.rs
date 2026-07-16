@@ -193,7 +193,7 @@ impl SparseVec {
     pub fn get_mut(&mut self, index: usize, version: u32) -> Option<usize> {
         self.sparse
             .get_mut(index)?
-            .take_if(|e| e.version == version)
+            .filter(|e| e.version == version)
             .map(|e| e.index)
     }
 

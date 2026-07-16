@@ -22,6 +22,10 @@ pub struct D;
 #[derive(Clone, Copy)]
 pub struct E;
 
+#[derive(Clone, Copy)]
+pub struct AData(pub i32);
+
+
 pub const GROUP_AB: &[ComponentData] = &[ComponentData::new::<A>(), ComponentData::new::<B>()];
 pub const GROUP_ABC: &[ComponentData] = &[
     ComponentData::new::<A>(),

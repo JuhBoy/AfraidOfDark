@@ -1,18 +1,95 @@
+use bevy_ecs::error::panic;
+use glfw::Key::W;
+
+use crate::engine::ecs::my_ecs::ecs::EntityCreateResult;
+use crate::engine::ecs::my_ecs::entities::Entity;
+use crate::engine::ecs::my_ecs::{self, ecs};
+use crate::tests::sparce_ecs_tests::ecs_test_helpers::{create_ecs, B};
+use crate::tests::sparce_ecs_tests::ecs_test_helpers::{AData, A};
+
 // Verifies that an entity can be created with one component.
 #[test]
-fn entity_can_be_created_with_one_component() {}
+fn entity_can_be_created_with_one_component() {
+    let mut ecs = create_ecs();
+    ecs.allocate_storage::<A>();
+
+    let entity_res_a = ecs.create::<(A,)>((A {},));
+    let mut entity_a: Entity = Entity::null();
+
+    match entity_res_a {
+        EntityCreateResult::Failed(_) => assert!(false),
+        EntityCreateResult::Grouped(_grouped_entity) => assert!(false),
+        EntityCreateResult::Ungrouped(entity) => {
+            entity_a = entity;
+        }
+    }
+
+    let has_a = ecs.has_component::<A>(entity_a);
+    assert!(has_a);
+}
 
 // Verifies that an entity can be created with multiple components.
 #[test]
-fn entity_can_be_created_with_component_bundle() {}
+fn entity_can_be_created_with_component_bundle() {
+    let mut ecs = create_ecs();
+    ecs.allocate_storage::<A>();
+    ecs.allocate_storage::<B>();
+
+    let entity_res_ab = ecs.create::<(A, B)>((A {}, B {}));
+
+    let EntityCreateResult::Ungrouped(entity_ab) = entity_res_ab else {
+        panic!("failed to create entity with A and B component");
+    };
+
+    assert!(ecs.has_component::<A>(entity_ab));
+    assert!(ecs.has_component::<B>(entity_ab));
+}
 
 // Verifies that an inserted component can be read through a shared reference.
 #[test]
-fn inserted_component_can_be_read() {}
+fn inserted_component_can_be_read() {
+    let mut ecs = create_ecs();
+    ecs.allocate_storage::<AData>();
+
+    let entity = ecs.create::<(AData,)>((AData(42),));
+
+    let EntityCreateResult::Ungrouped(entity) = entity else {
+        panic!("failed to created entity with component AData");
+    };
+
+    let binding = ecs.component_storage.get_storage::<AData>();
+    let comp = binding.get::<AData>(entity);
+    assert!(comp.is_some());
+
+    let comp: &AData = comp.unwrap();
+    assert_eq!(42, comp.0);
+}
 
 // Verifies that an inserted component can be obtained through a mutable reference.
 #[test]
-fn inserted_component_can_be_mutably_accessed() {}
+fn inserted_component_can_be_mutably_accessed() {
+    let mut ecs = create_ecs();
+    ecs.allocate_storage::<AData>();
+
+    let entity = ecs.create::<(AData,)>((AData(42),));
+
+    let EntityCreateResult::Ungrouped(entity) = entity else {
+        panic!("failed to created entity with component AData");
+    };
+
+    {
+        let mut binding = ecs.component_storage.get_storage_mut::<AData>();
+        let comp = binding.get_mut::<AData>(entity);
+        assert!(comp.is_some());
+
+        let comp: &mut AData = comp.unwrap();
+        assert_eq!(42, comp.0);
+        comp.0 = 84;
+    }
+
+    let binding = ecs.component_storage.get_storage::<AData>();
+    assert_eq!(84, binding.get::<AData>(entity).unwrap().0);
+}
 
 // Verifies that mutations made through a mutable component reference persist.
 #[test]
