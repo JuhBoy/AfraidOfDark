@@ -4,7 +4,7 @@ use glfw::Key::W;
 use crate::engine::ecs::my_ecs::ecs::EntityCreateResult;
 use crate::engine::ecs::my_ecs::entities::Entity;
 use crate::engine::ecs::my_ecs::{self, ecs};
-use crate::tests::sparce_ecs_tests::ecs_test_helpers::{create_ecs, B};
+use crate::tests::sparce_ecs_tests::ecs_test_helpers::{B, C, create_ecs};
 use crate::tests::sparce_ecs_tests::ecs_test_helpers::{AData, A};
 
 // Verifies that an entity can be created with one component.
@@ -113,7 +113,20 @@ fn component_mutation_persists() {
 
 // Verifies that checking for an existing component returns true.
 #[test]
-fn contains_component_returns_true_for_present_component() {}
+fn contains_component_returns_true_for_present_component() {
+    let mut ecs = create_ecs();
+    ecs.allocate_storages::<(A, B, C)>();
+
+    let entity = ecs.create::<(A, B, C)>((A { }, B { }, C { }));
+
+    let EntityCreateResult::Ungrouped(entity) = entity else {
+        panic!("failed to created entity with component AData");
+    };
+
+    assert!(ecs.component_storage.get_storage::<A>().has(entity));
+    assert!(ecs.component_storage.get_storage::<B>().has(entity));
+    assert!(ecs.component_storage.get_storage::<C>().has(entity));
+}
 
 // Verifies that checking for a missing component returns false.
 #[test]

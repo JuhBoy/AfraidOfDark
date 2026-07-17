@@ -7,10 +7,19 @@ use crate::engine::ecs::my_ecs::archetypes::{
 use crate::engine::ecs::my_ecs::components::{ComponentMetaData, ComponentStorage};
 use crate::engine::ecs::my_ecs::entities::{Entity, EntityStorage};
 use crate::engine::ecs::my_ecs::systems::{System, SystemParams, TSystem};
-use crate::engine::ecs::my_ecs::utils::ID;
 
 use super::archetypes::ComponentSet;
 use super::utils::GroupMask;
+
+// used for macro generation, allow to register multiple storage at once using tuples
+pub trait AllocateStorageSet {
+    fn allocates(ecs: &mut ECS) -> AllocationResult;
+}
+pub enum AllocationResult {
+    Success,
+    Partial,
+    Failed,
+}
 
 pub struct ECSStats {
     pub archetypes_broken: i32,
@@ -87,6 +96,18 @@ impl ECS {
         T: 'static,
     {
         self.component_storage.allocate::<T>()
+    }
+
+    pub fn allocate_storages<T>(&mut self)
+    where
+        T: AllocateStorageSet,
+    {
+        match T::allocates(self) {
+            AllocationResult::Partial | AllocationResult::Failed => {
+                panic!("failed to allocate all storages")
+            }
+            _ => (),
+        }
     }
 
     pub fn has_component<T>(&self, entity: Entity) -> bool
@@ -232,3 +253,35 @@ impl ECS {
         }
     }
 }
+
+macro_rules! allocate_buffers {
+    ( ($( ($comps:tt, $index:tt) ),+); $count:tt ) => {
+        impl<$($comps),*> AllocateStorageSet for ($($comps,)*) where $($comps: 'static),* {
+            fn allocates(ecs: &mut ECS) -> AllocationResult {
+                let mut allocated: usize = 0;
+
+                $(
+                    let meta = ecs.component_storage.allocate::<$comps>();
+                    if meta.is_some() {
+                        allocated += 1;
+                    } else {
+                        println!("[storage] failed to allocate $comps");
+                    }
+                )*
+
+
+                match allocated {
+                    $count => AllocationResult::Success,
+                    1.. => AllocationResult::Partial,
+                    _ => AllocationResult::Failed
+                }
+            }
+        }
+    };
+}
+
+allocate_buffers!(((A, 0)); 1);
+allocate_buffers!(((A, 0), (B, 1)); 2);
+allocate_buffers!(((A, 0), (B, 1), (C, 2)); 3);
+allocate_buffers!(((A, 0), (B, 1), (C, 2), (D, 3)); 4);
+allocate_buffers!(((A, 0), (B, 1), (C, 2), (D, 3), (E, 4)); 5);
