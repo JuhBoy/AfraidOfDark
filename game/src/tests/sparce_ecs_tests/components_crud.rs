@@ -1,10 +1,11 @@
 use bevy_ecs::error::panic;
 use glfw::Key::W;
 
-use crate::engine::ecs::my_ecs::ecs::EntityCreateResult;
+use crate::engine::ecs::my_ecs::archetypes::ComponentSet;
+use crate::engine::ecs::my_ecs::ecs::{EntityCreateResult, EntityUpdateResult};
 use crate::engine::ecs::my_ecs::entities::Entity;
 use crate::engine::ecs::my_ecs::{self, ecs};
-use crate::tests::sparce_ecs_tests::ecs_test_helpers::{B, C, create_ecs};
+use crate::tests::sparce_ecs_tests::ecs_test_helpers::{create_ecs, B, C};
 use crate::tests::sparce_ecs_tests::ecs_test_helpers::{AData, A};
 
 // Verifies that an entity can be created with one component.
@@ -117,7 +118,7 @@ fn contains_component_returns_true_for_present_component() {
     let mut ecs = create_ecs();
     ecs.allocate_storages::<(A, B, C)>();
 
-    let entity = ecs.create::<(A, B, C)>((A { }, B { }, C { }));
+    let entity = ecs.create::<(A, B, C)>((A {}, B {}, C {}));
 
     let EntityCreateResult::Ungrouped(entity) = entity else {
         panic!("failed to created entity with component AData");
@@ -130,15 +131,67 @@ fn contains_component_returns_true_for_present_component() {
 
 // Verifies that checking for a missing component returns false.
 #[test]
-fn contains_component_returns_false_for_missing_component() {}
+fn contains_component_returns_false_for_missing_component() {
+    let mut ecs = create_ecs();
+    ecs.allocate_storages::<(A, B, C)>();
+
+    let entity = ecs.create::<(A, C)>((A {}, C {}));
+
+    let EntityCreateResult::Ungrouped(entity) = entity else {
+        panic!("failed to created entity with component AData");
+    };
+
+    assert!(ecs.component_storage.get_storage::<A>().has(entity));
+    assert!(!ecs.component_storage.get_storage::<B>().has(entity));
+    assert!(ecs.component_storage.get_storage::<C>().has(entity));
+}
 
 // Verifies that inserting one component does not modify unrelated components.
 #[test]
-fn inserting_component_preserves_existing_components() {}
+fn inserting_component_preserves_existing_components() {
+    let mut ecs = create_ecs();
+    ecs.allocate_storages::<(A, B, C)>();
+
+    let entity = ecs.create::<(A,)>((A {},));
+
+    let EntityCreateResult::Ungrouped(entity) = entity else {
+        panic!("failed to created entity with component AData");
+    };
+
+    let comps_set_b = (B {},);
+    let comps_set_c = (C {},);
+    let EntityUpdateResult::Ungrouped(entity) = ecs.add_component::<(B,)>(entity, comps_set_b)  else { 
+        panic!("entity were not updated with the B component");
+    };
+    let EntityUpdateResult::Ungrouped(entity) = ecs.add_component::<(C,)>(entity, comps_set_c)  else { 
+        panic!("entity were not updated with the C component");
+    };
+
+    assert!(ecs.component_storage.get_storage::<A>().has(entity));
+    assert!(ecs.component_storage.get_storage::<B>().has(entity));
+    assert!(ecs.component_storage.get_storage::<C>().has(entity));
+}
 
 // Verifies that removing one component does not modify unrelated components.
 #[test]
-fn removing_component_preserves_other_components() {}
+fn removing_component_preserves_other_components() {
+    let mut ecs = create_ecs();
+    ecs.allocate_storages::<(A, B, C)>();
+
+    let entity = ecs.create::<(A, B, C)>((A {}, B {}, C {}));
+
+    let EntityCreateResult::Ungrouped(entity) = entity else {
+        panic!("failed to created entity with component AData");
+    };
+
+    assert!(ecs.remove_component::<(B,)>(entity));
+    assert!(!ecs.has_component::<B>(entity));
+    assert!(ecs.component_storage.get_storage::<A>().has(entity));
+    assert!(ecs.component_storage.get_storage::<C>().has(entity));
+
+    let comps = ecs.entity_storage.get_group(entity).unwrap();
+    assert_eq!(5, comps.get_raw());
+}
 
 // Verifies that removing an existing component returns its stored value.
 #[test]

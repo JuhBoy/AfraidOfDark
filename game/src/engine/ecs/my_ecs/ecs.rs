@@ -177,21 +177,20 @@ impl ECS {
         let mut archetype = self.archetypes.borrow_mut();
 
         let ungrouped = TCompSet::ungroup(entity, &mut archetype, storage);
+        let mb_group = self.entity_storage.get_group(entity);
 
-        if ungrouped {
-            let mb_group = self.entity_storage.get_group(entity);
+        if let Some(mut current_mask) = mb_group {
+            let exclusive_mask = TCompSet::group_mask(storage);
+            current_mask.excludes(&exclusive_mask);
 
-            if let Some(mut current_mask) = mb_group {
-                let exclusive_mask = TCompSet::group_mask(storage);
-                current_mask.excludes(&exclusive_mask);
+            self.entity_storage.set_group(entity, current_mask);
 
-                self.entity_storage.set_group(entity, current_mask);
+            if ungrouped {
+                println!("entity {:?} ungrouped", entity);
             }
-        } else {
-            panic!("weird, an entity got ungrouped but has no group mask; is there an issue with group attribution ?")
         }
 
-        ungrouped
+        true
     }
 
     pub fn make_archetype<A>(&self) -> bool

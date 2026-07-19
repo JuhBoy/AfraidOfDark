@@ -580,12 +580,7 @@ macro_rules! generate_component_set {
             let groups_option = archetypes.get_supersets(&group_mask, MatchType::Partial);
             let mut ungrouped: bool = false;
 
-            if groups_option.is_none() {
-                return false;
-            }
-
-            let groups: &mut [RuntimeGroup] = groups_option.unwrap();
-            for group in groups {
+            for group in groups_option.unwrap_or(&mut []) {
                 if group.len == 0 {
                     continue;
                 }
