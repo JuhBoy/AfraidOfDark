@@ -160,10 +160,12 @@ fn inserting_component_preserves_existing_components() {
 
     let comps_set_b = (B {},);
     let comps_set_c = (C {},);
-    let EntityUpdateResult::Ungrouped(entity) = ecs.add_component::<(B,)>(entity, comps_set_b)  else { 
+    let EntityUpdateResult::Ungrouped(entity) = ecs.add_component::<(B,)>(entity, comps_set_b)
+    else {
         panic!("entity were not updated with the B component");
     };
-    let EntityUpdateResult::Ungrouped(entity) = ecs.add_component::<(C,)>(entity, comps_set_c)  else { 
+    let EntityUpdateResult::Ungrouped(entity) = ecs.add_component::<(C,)>(entity, comps_set_c)
+    else {
         panic!("entity were not updated with the C component");
     };
 
@@ -193,17 +195,53 @@ fn removing_component_preserves_other_components() {
     assert_eq!(5, comps.get_raw());
 }
 
-// Verifies that removing an existing component returns its stored value.
-#[test]
-fn removing_existing_component_returns_value() {}
-
 // Verifies that removing a missing component fails safely.
 #[test]
-fn removing_missing_component_fails_safely() {}
+fn removing_missing_component_fails_safely() {
+    let mut ecs = create_ecs();
+    ecs.allocate_storages::<(A, B, C)>();
+
+    let entity = ecs.create::<(A,)>((A {},));
+
+    let EntityCreateResult::Ungrouped(entity) = entity else {
+        panic!("failed to created entity with component AData");
+    };
+
+    assert!(ecs.component_storage.get_storage::<A>().has(entity));
+    assert!(!ecs.remove_component::<(B,)>(entity));
+    assert!(!ecs.remove_component::<(C,)>(entity));
+
+    let comps = ecs.entity_storage.get_group(entity).unwrap();
+
+    const MASK_A: u64 = 1;
+    assert_eq!(MASK_A, comps.get_raw());
+}
 
 // Verifies that inserting a component of an already present type follows the replacement policy.
 #[test]
-fn inserting_existing_component_follows_replacement_policy() {}
+fn inserting_existing_component_follows_replacement_policy() {
+    let mut ecs = create_ecs();
+    ecs.allocate_storages::<(AData, B, C)>();
+
+    let entity = ecs.create::<(AData,)>((AData(32),));
+
+    let EntityCreateResult::Ungrouped(entity) = entity else {
+        panic!("failed to created entity with component AData");
+    };
+
+    assert!(ecs.has_component::<AData>(entity));
+
+    let entity = ecs.add_component::<(AData,)>(entity, (AData(64), ));
+    let EntityUpdateResult::Ungrouped(entity) = entity else {
+        panic!("add component failed");
+    };
+
+    let comp_ref = ecs.component_storage.get_storage::<AData>();
+    let comp_ref = comp_ref.get::<AData>(entity);
+
+    assert!(comp_ref.is_some(), "component not found");
+    assert_eq!(64, comp_ref.unwrap().0);
+}
 
 // Verifies that replacing a component exposes or drops the previous value according to the API contract.
 #[test]

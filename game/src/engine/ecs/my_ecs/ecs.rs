@@ -141,12 +141,11 @@ impl ECS {
             .entity_storage
             .get_group(entity)
             .map_or(GroupMask::new(None), |g| g);
-        let _group_result = TCompSet::group(
+        let group_result = TCompSet::group(
             &GroupedEntity::from(entity, group),
             &mut arch_manager,
             storage,
         );
-
         let mut requested_group = TCompSet::group_mask(&storage);
 
         // update group for entity metadata
@@ -160,7 +159,7 @@ impl ECS {
             self.entity_storage.set_group(entity, requested_group);
         }
 
-        match _group_result {
+        match group_result {
             true => EntityUpdateResult::Grouped(GroupedEntity {
                 group: requested_group,
                 entity: entity,
@@ -179,6 +178,8 @@ impl ECS {
         let ungrouped = TCompSet::ungroup(entity, &mut archetype, storage);
         let mb_group = self.entity_storage.get_group(entity);
 
+        let has_removed_comps = TCompSet::remove(entity, storage) > 0;
+
         if let Some(mut current_mask) = mb_group {
             let exclusive_mask = TCompSet::group_mask(storage);
             current_mask.excludes(&exclusive_mask);
@@ -190,7 +191,7 @@ impl ECS {
             }
         }
 
-        true
+        has_removed_comps
     }
 
     pub fn make_archetype<A>(&self) -> bool

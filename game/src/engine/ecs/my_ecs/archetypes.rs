@@ -430,6 +430,7 @@ pub trait ComponentSet {
         archetypes: &mut ArchetypesManager,
         storage: &mut ComponentStorage,
     ) -> bool;
+    fn remove(entity: Entity, storage: &mut ComponentStorage) -> u32;
 }
 
 macro_rules! generate_component_set {
@@ -469,9 +470,9 @@ macro_rules! generate_component_set {
             let entity = &grouped_entity.entity;
             let request_group = Self::group_mask(storage);
 
-            // leave if the entity contains already all groups
-            if request_group.is_match(&grouped_entity.group) {
-                return true;
+            // leave if the entity is already a superset of the requested groups
+            if grouped_entity.group.is_superset_of(&request_group) {
+                return false;
             }
 
             let merged_group = GroupMask::new(Some(grouped_entity.group.get_raw() | request_group.get_raw()));
@@ -623,13 +624,23 @@ macro_rules! generate_component_set {
                 }
             }
 
+            ungrouped
+        }
+
+        fn remove(entity: Entity, storage: &mut ComponentStorage) -> u32 {
             let mut stores = ($(storage.get_storage_mut::<$components>(),)*);
+            let mut removed_count: u32 = 0;
+
             $({
                 let store = &mut stores.$index;
-                let _removed = store.remove::<$components>(entity);
+                let removed = store.remove::<$components>(entity);
+
+                if removed.is_some() { 
+                    removed_count += 1;
+                }
             })*
 
-            ungrouped
+            removed_count
         }
       }
     };
