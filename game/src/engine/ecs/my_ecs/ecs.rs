@@ -40,7 +40,7 @@ pub enum EntityCreateResult {
 }
 #[derive(PartialEq)]
 pub enum EntityUpdateResult {
-    Failed(String),
+    Failed(&'static str),
     Grouped(GroupedEntity),
     Ungrouped(Entity),
 }
@@ -114,6 +114,9 @@ impl ECS {
     where
         T: 'static,
     {
+        if !self.entity_storage.is_valid(entity) {
+            return false;
+        }
         return self.component_storage.has_component::<T>(entity);
     }
 
@@ -125,16 +128,18 @@ impl ECS {
     where
         TCompSet: ComponentSet + 'static,
     {
+        if !self.entity_storage.is_valid(entity) {
+            return EntityUpdateResult::Failed("Entity is not valid");
+        }
+
         let storage = &mut self.component_storage;
         let mut arch_manager = self.archetypes.borrow_mut();
 
         let inserted = TCompSet::insert(&entity, storage, components);
         if !inserted {
-            let error = format!(
-                "failed to insert entity, ensure components have storages (comps: {:?})",
-                TypeId::of::<TCompSet>(),
+            return EntityUpdateResult::Failed(
+                "failed to insert entity, ensure components have storages",
             );
-            return EntityUpdateResult::Failed(error);
         }
 
         let group = self
@@ -172,6 +177,10 @@ impl ECS {
     where
         TCompSet: ComponentSet + 'static,
     {
+        if !self.entity_storage.is_valid(entity) {
+            return false;
+        }
+
         let storage = &mut self.component_storage;
         let mut archetype = self.archetypes.borrow_mut();
 
@@ -251,6 +260,31 @@ impl ECS {
                 return EntityCreateResult::Ungrouped(entity);
             }
         }
+    }
+
+    pub fn destroy(&mut self, entity: Entity) -> bool {
+        let entity_group: Option<GroupMask> = self.entity_storage.get_group(entity);
+        let removed: bool = self.entity_storage.remove(entity);
+
+        if !removed {
+            return false;
+        }
+
+        if let Some(mut entity_group) = entity_group {
+            while !entity_group.is_empty() {
+                let store_id: usize = entity_group.least_one() as usize;
+                entity_group.and(entity_group.get_raw() - 1);
+
+                let mut store = self.component_storage.get_storage_mut_by_id(store_id);
+                let removed = store.remove(entity);
+
+                if removed.is_none() {
+                    panic!("a component present in the entity metadata is not present in storage component");
+                }
+            }
+        }
+
+        true
     }
 }
 

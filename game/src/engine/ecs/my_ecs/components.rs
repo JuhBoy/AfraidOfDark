@@ -45,7 +45,7 @@ impl ComponentBufferSparseSet {
         true
     }
 
-    pub fn remove<T>(&mut self, ett: Entity) -> Option<usize> {
+    pub fn remove(&mut self, ett: Entity) -> Option<usize> {
         let removed_index: usize = { self.entities.remove(ett.id, ett.version) }?;
 
         let last_dense_index = self.component_buffer.len - 1;
@@ -64,7 +64,7 @@ impl ComponentBufferSparseSet {
         self.entity_to_component
             .swap(removed_index, last_dense_index);
         self.component_buffer
-            .swap::<T>(removed_index, last_dense_index);
+            .swap_untyped(removed_index, last_dense_index);
         self.component_buffer.len -= 1;
 
         Some(removed_index)

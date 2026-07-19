@@ -231,7 +231,7 @@ fn inserting_existing_component_follows_replacement_policy() {
 
     assert!(ecs.has_component::<AData>(entity));
 
-    let entity = ecs.add_component::<(AData,)>(entity, (AData(64), ));
+    let entity = ecs.add_component::<(AData,)>(entity, (AData(64),));
     let EntityUpdateResult::Ungrouped(entity) = entity else {
         panic!("add component failed");
     };
@@ -243,33 +243,25 @@ fn inserting_existing_component_follows_replacement_policy() {
     assert_eq!(64, comp_ref.unwrap().0);
 }
 
-// Verifies that replacing a component exposes or drops the previous value according to the API contract.
-#[test]
-fn replacing_component_handles_previous_value_correctly() {}
-
-// Verifies that an entity cannot contain two independent components of the same concrete type.
-#[test]
-fn entity_contains_at_most_one_component_per_type() {}
-
-// Verifies that duplicate component types inside a bundle are rejected without partial insertion.
-#[test]
-fn duplicate_component_types_in_bundle_are_rejected_atomically() {}
-
-// Verifies that inserting a bundle adds every component from that bundle.
-#[test]
-fn inserting_bundle_adds_all_components() {}
-
-// Verifies that bundle insertion is atomic when one component cannot be inserted.
-#[test]
-fn bundle_insertion_failure_does_not_partially_modify_entity() {}
-
-// Verifies that removing a component bundle follows the documented mixed-present/missing behavior.
-#[test]
-fn bundle_removal_handles_present_and_missing_components() {}
-
 // Verifies that inserting a component into a destroyed entity fails safely.
 #[test]
-fn component_cannot_be_inserted_into_destroyed_entity() {}
+fn component_cannot_be_inserted_into_destroyed_entity() {
+    let mut ecs = create_ecs();
+    ecs.allocate_storages::<(AData, B, C)>();
+
+    let entity = ecs.create::<(AData,)>((AData(32),));
+
+    let EntityCreateResult::Ungrouped(entity) = entity else {
+        panic!("failed to created entity with component AData");
+    };
+
+    assert!(ecs.destroy(entity));
+
+    let update_res = ecs.add_component::<(A,)>(entity, (A {},));
+    let EntityUpdateResult::Failed(_failed_res) = update_res else {
+        panic!("the add component should not be a success");
+    };
+}
 
 // Verifies that reading a component from a destroyed entity returns no value.
 #[test]

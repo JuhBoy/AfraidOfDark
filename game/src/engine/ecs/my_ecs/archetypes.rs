@@ -633,7 +633,7 @@ macro_rules! generate_component_set {
 
             $({
                 let store = &mut stores.$index;
-                let removed = store.remove::<$components>(entity);
+                let removed = store.remove(entity);
 
                 if removed.is_some() { 
                     removed_count += 1;

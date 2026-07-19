@@ -65,9 +65,17 @@ impl EntityStorage {
     }
 
     pub fn remove(&mut self, entity: Entity) -> bool {
+        if !self.is_valid(entity) { 
+            return false;
+        }
+
         let recycled = self.allocator.recycle(entity);
         if !recycled {
             return false;
+        }
+
+        if let Some(group) = self.metadata.group_mut(entity.id) {
+            group.clear();
         }
 
         self.entities.remove(entity)
@@ -80,6 +88,10 @@ impl EntityStorage {
 
     pub fn dense_slice(&self) -> &[Entity] {
         &self.entities.dense_set
+    }
+
+    pub fn is_valid(&self, entity: Entity) -> bool { 
+        self.entities.has(entity)
     }
 
     /// metadata ===========
@@ -148,7 +160,7 @@ impl EntityAllocator {
     }
 
     pub fn recycle(&mut self, entity: Entity) -> bool {
-        if (entity.id >= self.next_allocated_index) {
+        if entity.id >= self.next_allocated_index {
             return false;
         }
 

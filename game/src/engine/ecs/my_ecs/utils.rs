@@ -274,7 +274,13 @@ where
         // to do the exact same thing behind the hood
         if let Some(existing_view) = view {
             existing_view.version = entity.version();
-            self.dense_set[existing_view.index] = entity;
+
+            if existing_view.index >= self.dense_set.len() {
+                self.dense_set.push(entity);
+                existing_view.index = self.dense_set.len() - 1;
+            } else {
+                self.dense_set[existing_view.index] = entity;
+            }
         } else {
             *view = Some(SparseView {
                 index: self.dense_set.len(),
@@ -285,15 +291,24 @@ where
     }
 
     pub fn remove(&mut self, entity: T) -> bool {
-        let Some(dense_id) = self.sparse_views.remove(entity.id(), entity.version()) else {
+        let Some(removed_dense_id) = self.sparse_views.remove(entity.id(), entity.version()) else {
             return false;
         };
+
+        let last_entity_dense_id = self.dense_set.len() - 1;
+
+        if last_entity_dense_id != removed_dense_id {
+            if let Some(last_view) = self.sparse_views.get_unchecked_mut(last_entity_dense_id) {
+                last_view.index = removed_dense_id;
+            }
+            let _ = self.dense_set.swap_remove(removed_dense_id);
+        }
 
         // zero for version allow us to reuse slot but ensure that the entity is marked removed
         // so all entities must have a version >= 1 to be considered valid
         let slot = self.sparse_views.get_unchecked_mut(entity.id());
         *slot = Some(SparseView {
-            index: dense_id,
+            index: usize::MAX,
             version: 0,
         });
 

@@ -14,7 +14,7 @@ use crate::engine::ecs::my_ecs::utils::{GroupMask, SparseVec};
 use crate::{engine::ecs::my_ecs::{
     archetypes::{ArchetypesManager, MatchType}, ecs::{ECSStats, EntityCreateResult}, systems::{make_system, Query, SystemParams},
 }, tests::sparce_ecs_tests::ecs_test_helpers::{create_archetypes, create_ecs, create_entities, A, B, C, D, E, GROUP_AB, GROUP_ABC, GROUP_ABCD, GROUP_ABCDE}};
-use std::{cell::RefCell, time::SystemTime};
+use std::{cell::RefCell, collections::HashSet, time::SystemTime};
 
 #[allow(dead_code)]
 pub struct Position {
@@ -61,11 +61,19 @@ pub fn test_entity_storage_implementation() {
     assert_eq!(true, removed);
 
     let mut i = 0;
+    let mut set: HashSet<usize> = HashSet::new();
     for ett in storage.entities.iter() {
-        assert_eq!(i, ett.id);
+        set.insert(ett.id);
         i += 1;
     }
     assert_eq!(i, 10);
+
+    for i in 0..10 {
+        assert_ne!(0, storage.entities.dense_set[i].version);
+        assert!(set.contains(&(i as usize)));
+        set.remove(&(i as usize));
+    }
+    assert!(set.is_empty());
 
     storage.reset();
 }
@@ -161,7 +169,7 @@ pub fn test_component_storage() {
     let success = com_storage.insert(entity_0, Velocity { x: 0.0, y: 0.0 });
     assert!(success);
 
-    let removed = com_storage.remove::<Velocity>(entity_0);
+    let removed = com_storage.remove(entity_0);
     assert!(removed.is_some());
     assert!(!com_storage.has(entity_0));
 
@@ -179,8 +187,8 @@ pub fn test_component_storage() {
     assert!(insert);
     assert_eq!(pos_0.index, 1);
 
-    let removed_2 = com_storage.remove::<Velocity>(entity_0);
-    let removed_3 = com_storage.remove::<Velocity>(entity_10);
+    let removed_2 = com_storage.remove(entity_0);
+    let removed_3 = com_storage.remove(entity_10);
     assert!(removed_2.is_some());
     assert!(removed_3.is_some());
     assert_eq!(com_storage.component_buffer.len, 0);
@@ -200,7 +208,7 @@ pub fn test_component_storage() {
 
     for i in 0..50 {
         let ett = Entity { id: i, version: 1 };
-        let loop_removed = com_storage.remove::<Velocity>(ett);
+        let loop_removed = com_storage.remove(ett);
         assert!(loop_removed.is_some());
     }
     assert_eq!(com_storage.component_buffer.len, 50);
@@ -226,7 +234,7 @@ pub fn test_component_storage() {
 
     for i in 50..100 {
         let ett = Entity { id: i, version: 1 };
-        com_storage.remove::<Velocity>(ett);
+        com_storage.remove(ett);
     }
     assert_eq!(com_storage.component_buffer.len, 0);
 
