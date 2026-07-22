@@ -1,7 +1,7 @@
 use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
 
-use crate::engine::ecs::my_ecs::entities::Entity;
-use crate::engine::ecs::my_ecs::utils::{ByteBuffer, GroupMask, SparseVec, SparseView, ID};
+use crate::engine::ecs::lazy_ecs::entities::Entity;
+use crate::engine::ecs::lazy_ecs::utils::{ByteBuffer, GroupMask, SparseVec, SparseView, ID};
 use std::any::TypeId;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;

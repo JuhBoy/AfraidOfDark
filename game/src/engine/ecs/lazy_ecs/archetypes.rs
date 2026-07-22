@@ -1,5 +1,5 @@
 use super::entities::Entity;
-use crate::engine::ecs::my_ecs::{
+use crate::engine::ecs::lazy_ecs::{
     components::{ComponentMetaData, ComponentStorage},
     ecs::GroupedEntity,
     utils::GroupMask,

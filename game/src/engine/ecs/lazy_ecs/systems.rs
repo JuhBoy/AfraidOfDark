@@ -1,7 +1,7 @@
 use super::archetypes::RuntimeGroup;
 use super::entities::Entity;
-use crate::engine::ecs::my_ecs::ecs::ECS;
-use crate::engine::ecs::my_ecs::queries::TQuery;
+use crate::engine::ecs::lazy_ecs::ecs::ECS;
+use crate::engine::ecs::lazy_ecs::queries::TQuery;
 use std::marker::PhantomData;
 
 pub enum SystemUpdate {

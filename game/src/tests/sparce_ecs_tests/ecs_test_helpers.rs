@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use crate::engine::ecs::my_ecs::{
+use crate::engine::ecs::lazy_ecs::{
     archetypes::{ArchetypesManager, ComponentData, ComponentSet},
     components::ComponentStorage,
     ecs::{ECSStats, EntityCreateResult, GroupedEntity, ECS},

@@ -1,12 +1,12 @@
 use std::any::TypeId;
 use std::cell::RefCell;
 
-use crate::engine::ecs::my_ecs::archetypes::{
+use crate::engine::ecs::lazy_ecs::archetypes::{
     ArchetypeDefinition, ArchetypesManager, ComponentData,
 };
-use crate::engine::ecs::my_ecs::components::{ComponentMetaData, ComponentStorage};
-use crate::engine::ecs::my_ecs::entities::{Entity, EntityStorage};
-use crate::engine::ecs::my_ecs::systems::{System, SystemParams, TSystem};
+use crate::engine::ecs::lazy_ecs::components::{ComponentMetaData, ComponentStorage};
+use crate::engine::ecs::lazy_ecs::entities::{Entity, EntityStorage};
+use crate::engine::ecs::lazy_ecs::systems::{System, SystemParams, TSystem};
 
 use super::archetypes::ComponentSet;
 use super::utils::GroupMask;

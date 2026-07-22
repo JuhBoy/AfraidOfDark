@@ -1,8 +1,8 @@
-use crate::engine::ecs::my_ecs::archetypes::RuntimeGroup;
-use crate::engine::ecs::my_ecs::components::{ComponentBufferSparseSet, ComponentMetaData};
-use crate::engine::ecs::my_ecs::ecs::ECS;
-use crate::engine::ecs::my_ecs::entities::Entity;
-use crate::engine::ecs::my_ecs::utils::GroupMask;
+use crate::engine::ecs::lazy_ecs::archetypes::RuntimeGroup;
+use crate::engine::ecs::lazy_ecs::components::{ComponentBufferSparseSet, ComponentMetaData};
+use crate::engine::ecs::lazy_ecs::ecs::ECS;
+use crate::engine::ecs::lazy_ecs::entities::Entity;
+use crate::engine::ecs::lazy_ecs::utils::GroupMask;
 use atomic_refcell::AtomicRefMut;
 use std::marker::PhantomData;
 use std::slice::Iter;

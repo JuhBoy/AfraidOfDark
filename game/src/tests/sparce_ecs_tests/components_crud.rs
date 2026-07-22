@@ -1,11 +1,11 @@
 use bevy_ecs::error::panic;
 use glfw::Key::W;
 
-use crate::engine::ecs::my_ecs::archetypes::{ComponentData, ComponentSet};
-use crate::engine::ecs::my_ecs::ecs::{EntityCreateResult, EntityUpdateResult};
-use crate::engine::ecs::my_ecs::entities::Entity;
-use crate::engine::ecs::my_ecs::systems::{Query, QueryMut};
-use crate::engine::ecs::my_ecs::{self, ecs};
+use crate::engine::ecs::lazy_ecs::archetypes::{ComponentData, ComponentSet};
+use crate::engine::ecs::lazy_ecs::ecs::{EntityCreateResult, EntityUpdateResult};
+use crate::engine::ecs::lazy_ecs::entities::Entity;
+use crate::engine::ecs::lazy_ecs::systems::{Query, QueryMut};
+use crate::engine::ecs::lazy_ecs::{self, ecs};
 use crate::tests::sparce_ecs_tests::ecs_test_helpers::{create_ecs, NonCopyA, B, C};
 use crate::tests::sparce_ecs_tests::ecs_test_helpers::{AData, A};
 

@@ -1,17 +1,17 @@
-use crate::engine::ecs::my_ecs::{
+use crate::engine::ecs::lazy_ecs::{
     archetypes::{ComponentData, ComponentSet},
     components::ComponentStorage,
     ecs::{EntityUpdateResult, ECS},
     entities::EntityMetadata,
     systems::SystemUpdate,
 };
-use crate::engine::ecs::my_ecs::{
+use crate::engine::ecs::lazy_ecs::{
     components::ComponentBufferSparseSet,
     entities::{Entity, EntityAllocator, EntityStorage},
     utils::{ByteBuffer, SparseSet},
 };
-use crate::engine::ecs::my_ecs::utils::{GroupMask, SparseVec};
-use crate::{engine::ecs::my_ecs::{
+use crate::engine::ecs::lazy_ecs::utils::{GroupMask, SparseVec};
+use crate::{engine::ecs::lazy_ecs::{
     archetypes::{ArchetypesManager, MatchType}, ecs::{ECSStats, EntityCreateResult}, systems::{make_system, Query, SystemParams},
 }, tests::sparce_ecs_tests::ecs_test_helpers::{create_archetypes, create_ecs, create_entities, A, B, C, D, E, GROUP_AB, GROUP_ABC, GROUP_ABCD, GROUP_ABCDE}};
 use std::{cell::RefCell, collections::HashSet, time::SystemTime};

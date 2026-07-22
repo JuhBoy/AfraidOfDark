@@ -1,4 +1,4 @@
-use crate::engine::ecs::my_ecs::utils::{GroupMask, SparseSet, ID};
+use crate::engine::ecs::lazy_ecs::utils::{GroupMask, SparseSet, ID};
 use std::collections::VecDeque;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
