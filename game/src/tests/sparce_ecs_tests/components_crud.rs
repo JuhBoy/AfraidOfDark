@@ -1,11 +1,12 @@
 use bevy_ecs::error::panic;
 use glfw::Key::W;
 
-use crate::engine::ecs::my_ecs::archetypes::ComponentSet;
+use crate::engine::ecs::my_ecs::archetypes::{ComponentData, ComponentSet};
 use crate::engine::ecs::my_ecs::ecs::{EntityCreateResult, EntityUpdateResult};
 use crate::engine::ecs::my_ecs::entities::Entity;
+use crate::engine::ecs::my_ecs::systems::{Query, QueryMut};
 use crate::engine::ecs::my_ecs::{self, ecs};
-use crate::tests::sparce_ecs_tests::ecs_test_helpers::{create_ecs, B, C};
+use crate::tests::sparce_ecs_tests::ecs_test_helpers::{create_ecs, NonCopyA, B, C};
 use crate::tests::sparce_ecs_tests::ecs_test_helpers::{AData, A};
 
 // Verifies that an entity can be created with one component.
@@ -265,31 +266,73 @@ fn component_cannot_be_inserted_into_destroyed_entity() {
 
 // Verifies that reading a component from a destroyed entity returns no value.
 #[test]
-fn component_cannot_be_read_from_destroyed_entity() {}
+fn component_cannot_be_read_from_destroyed_entity() {
+    let mut ecs = create_ecs();
+
+    ecs.allocate_storages::<(A, B, C)>();
+
+    let entity = ecs.create::<(A,)>((A {},));
+
+    let EntityCreateResult::Ungrouped(entity) = entity else {
+        panic!("failed to created entity with component AData");
+    };
+
+    assert!(ecs.destroy(entity));
+    assert!(!ecs.has_component::<A>(entity));
+
+    let query: Query<(A,)> = Query::new(&mut ecs);
+    assert_eq!(0, query.iter().count());
+}
 
 // Verifies that mutating a component on a destroyed entity fails safely.
 #[test]
-fn component_cannot_be_mutated_on_destroyed_entity() {}
+fn component_cannot_be_mutated_on_destroyed_entity() {
+    let mut ecs = create_ecs();
 
-// Verifies that removing a component from a destroyed entity fails safely.
-#[test]
-fn component_cannot_be_removed_from_destroyed_entity() {}
+    ecs.allocate_storages::<(A, B, C)>();
 
-// Verifies that zero-sized components can be inserted, queried, and removed.
-#[test]
-fn zero_sized_component_supports_full_lifecycle() {}
+    let entity = ecs.create::<(A,)>((A {},));
+
+    let EntityCreateResult::Ungrouped(entity) = entity else {
+        panic!("failed to created entity with component AData");
+    };
+
+    assert!(ecs.destroy(entity));
+    assert!(!ecs.has_component::<A>(entity));
+
+    let mut query: Query<(A,)> = Query::new(&mut ecs);
+    assert_eq!(0, query.iter_mut().count());
+}
 
 // Verifies that non-Copy and heap-owning component values are stored correctly.
 #[test]
-fn non_copy_component_supports_full_lifecycle() {}
+fn non_copy_component_supports_full_lifecycle() {
+    let mut ecs = create_ecs();
 
-// Verifies that components with large alignment requirements are stored correctly.
-#[test]
-fn highly_aligned_component_is_stored_correctly() {}
+    ecs.allocate_storages::<(NonCopyA,)>();
 
-// Verifies that large component values are not corrupted during storage relocation.
-#[test]
-fn large_component_survives_storage_relocation() {}
+    let entity = ecs.create::<(NonCopyA,)>((NonCopyA { a: 32 },));
+
+    let EntityCreateResult::Ungrouped(entity) = entity else {
+        panic!("failed to created entity with component AData");
+    };
+
+    assert!(ecs.has_component::<NonCopyA>(entity));
+
+    let mut query: Query<(NonCopyA,)> = Query::new(&mut ecs);
+    assert_eq!(1, query.iter_mut().count());
+
+    query.iter_mut().for_each(|a| {
+        a.1.a = 64;
+    });
+
+    let store = ecs.component_storage.get_storage::<NonCopyA>();
+    let val = store.get::<NonCopyA>(entity).map_or(0, |c| c.a);
+    assert_eq!(64, val);
+}
+
+// TODO(JuH): wait bulk implementation
+// ===================================
 
 // Verifies that creating many entities with the same component preserves every value.
 #[test]
@@ -297,4 +340,29 @@ fn bulk_component_creation_preserves_values() {}
 
 // Verifies that component storage can be reused after all of its components are removed.
 #[test]
-fn component_storage_can_be_reused_after_becoming_empty() {}
+fn component_storage_can_be_reused_after_becoming_empty() {
+    let mut ecs = create_ecs();
+
+    ecs.allocate_storages::<(A, B)>();
+    {
+        let mut archetypes = ecs.archetypes.borrow_mut();
+        const AB_GRP: &[ComponentData] = &[ComponentData::new::<A>(), ComponentData::new::<B>()];
+
+        assert!(archetypes.register(AB_GRP));
+        assert_eq!(1, archetypes.flush_archetypes(&mut ecs.component_storage));
+    }
+
+    let entity = ecs.create::<(A,)>((A {},));
+
+    let EntityCreateResult::Ungrouped(entity) = entity else {
+        panic!("failed to created entity with component AData");
+    };
+
+    ecs.reset();
+
+    assert!(!ecs.entity_storage.entities.has(entity));
+    assert!(!ecs.has_component::<A>(entity));
+
+    let archertype_count = ecs.archetypes.borrow().archetypes.len();
+    assert_eq!(0, archertype_count);
+}

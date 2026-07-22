@@ -16,6 +16,12 @@ pub struct ComponentBufferSparseSet {
 }
 
 impl ComponentBufferSparseSet {
+    pub fn clear(&mut self) {
+        self.component_buffer.clear_untyped();
+        self.entities.clear(true);
+        self.entity_to_component.clear();
+    }
+
     pub fn insert<T>(&mut self, ett: Entity, component: T) -> bool {
         let view = self.entities.get_unchecked_mut(ett.id());
 
@@ -338,5 +344,15 @@ impl ComponentStorage {
     {
         let component_type_id = TypeId::of::<T>();
         self.storages_index_by_type_id[&component_type_id]
+    }
+
+    pub fn reset(&mut self) {
+        for store in self.storages.iter() {
+            store.borrow_mut().clear();
+        }
+
+        self.storages.clear();
+        self.storages_index_by_type_id.clear();
+        self.iterator_container.clear();
     }
 }

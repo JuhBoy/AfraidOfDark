@@ -25,6 +25,9 @@ pub struct E;
 #[derive(Clone, Copy)]
 pub struct AData(pub i32);
 
+pub struct NonCopyA {
+    pub a: u32,
+}
 
 pub const GROUP_AB: &[ComponentData] = &[ComponentData::new::<A>(), ComponentData::new::<B>()];
 pub const GROUP_ABC: &[ComponentData] = &[

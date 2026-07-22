@@ -30,6 +30,10 @@ impl ECSStats {
             archetypes_broken: 0,
         })
     }
+
+    pub fn reset(&mut self) { 
+        self.archetypes_broken = 0;
+    }
 }
 
 #[derive(PartialEq)]
@@ -285,6 +289,14 @@ impl ECS {
         }
 
         true
+    }
+
+    pub fn reset(&mut self) { 
+        self.entity_storage.reset();
+        self.component_storage.reset();
+        self.update_systems.clear();
+        self.archetypes.borrow_mut().reset();
+        self.stats.borrow_mut().reset();
     }
 }
 

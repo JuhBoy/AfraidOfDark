@@ -297,6 +297,11 @@ impl ArchetypesManager {
 
         true
     }
+
+    pub fn reset(&mut self) { 
+        self.archetypes.clear();
+        self.layouts.clear();
+    }
 }
 
 // Abstract Definition =======================

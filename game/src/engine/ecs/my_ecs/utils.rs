@@ -22,6 +22,7 @@ pub struct ByteBuffer {
 pub struct ByteBufferTypeInfo {
     pub type_id: TypeId,
     pub bytes_len: usize,
+    pub layout: Layout,
 }
 
 impl ByteBuffer {
@@ -33,6 +34,12 @@ impl ByteBuffer {
 
         let n = unsafe { alloc(layout) };
         let nn: NonNull<u8> = NonNull::new(n)?;
+        let Ok(layout) = Layout::array::<T>(capacity) else {
+            panic!(
+                "failed to create array layout for type {:?}",
+                TypeId::of::<T>()
+            );
+        };
 
         Some(Self {
             data: nn,
@@ -41,6 +48,7 @@ impl ByteBuffer {
             type_info: ByteBufferTypeInfo {
                 type_id: TypeId::of::<T>(),
                 bytes_len: size_of::<T>(),
+                layout: layout,
             },
         })
     }
@@ -138,6 +146,16 @@ impl ByteBuffer {
 
         unsafe {
             dealloc(self.data.as_ptr(), layout);
+            true
+        }
+    }
+
+    pub fn clear_untyped(&mut self) -> bool {
+        self.capacity = 0;
+        self.len = 0;
+
+        unsafe {
+            dealloc(self.data.as_ptr(), self.type_info.layout);
             true
         }
     }
