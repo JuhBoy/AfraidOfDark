@@ -1,4 +1,3 @@
-use bevy_ecs::error::panic;
 use glfw::Key::W;
 
 use crate::engine::ecs::lazy_ecs::archetypes::{ComponentData, ComponentSet};

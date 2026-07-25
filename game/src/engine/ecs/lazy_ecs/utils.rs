@@ -313,10 +313,11 @@ where
             return false;
         };
 
-        let last_entity_dense_id = self.dense_set.len() - 1;
+        let dense_last_id = self.dense_set.len() - 1;
 
-        if last_entity_dense_id != removed_dense_id {
-            if let Some(last_view) = self.sparse_views.get_unchecked_mut(last_entity_dense_id) {
+        if dense_last_id != removed_dense_id {
+            let last_entity = self.dense_set.get(dense_last_id).unwrap();
+            if let Some(last_view) = self.sparse_views.get_unchecked_mut(last_entity.id()) {
                 last_view.index = removed_dense_id;
             }
             let _ = self.dense_set.swap_remove(removed_dense_id);
