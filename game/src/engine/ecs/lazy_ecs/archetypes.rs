@@ -583,53 +583,7 @@ macro_rules! generate_component_set {
         ) -> bool
         {
             let group_mask: GroupMask = Self::group_mask(storage);
-            let groups_option = archetypes.get_supersets(&group_mask, MatchType::Partial);
-            let mut ungrouped: bool = false;
-
-            for group in groups_option.unwrap_or(&mut []) {
-                if group.len == 0 {
-                    continue;
-                }
-                if !group.mask.intersects(&group_mask) {
-                    break;
-                }
-                let mut has_swaped: bool = false;
-                let mut all_masks = group.mask;
-
-                while !all_masks.is_empty() {
-                    let store_id = all_masks.least_one() as usize;
-                    all_masks.and(all_masks.get_raw() - 1);
-
-                    let mut store = storage.get_storage_mut_by_id(store_id);
-                    let entity_index = store.get_entity_index(entity);
-
-                    if let Some(entity_index) = entity_index {
-                        // NOTE(JuH): the entity is not part of this superset
-                        if entity_index >= group.len as usize {
-                            continue;
-                        }
-
-                        let swap_index: usize  = group.len as usize - 1;
-
-                        if swap_index != entity_index {
-                            let last_entity = store.get_entity(swap_index).unwrap();
-                            has_swaped |= store.swap_untyped(entity, last_entity);
-
-                            println!("swaped entity: {:?}[{}] <-> {:?}[{}] (store: {}, gid: {})", entity, entity_index, last_entity, swap_index, store_id, group.mask.get_raw());
-                        } else {
-                            has_swaped = true;
-                        }
-                    }
-                }
-
-                if has_swaped {
-                    println!("reduce group len by 1 for gid: {}", group.mask.get_raw());
-                    group.len -= 1;
-                    ungrouped = true;
-                }
-            }
-
-            ungrouped
+            return storage.ungroup(entity, group_mask, archetypes);
         }
 
         fn remove(entity: Entity, storage: &mut ComponentStorage) -> u32 {

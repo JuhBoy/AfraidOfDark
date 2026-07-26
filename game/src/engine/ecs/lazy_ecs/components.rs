@@ -1,5 +1,6 @@
 use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
 
+use crate::engine::ecs::lazy_ecs::archetypes::{ArchetypesManager, MatchType};
 use crate::engine::ecs::lazy_ecs::entities::Entity;
 use crate::engine::ecs::lazy_ecs::utils::{ByteBuffer, GroupMask, SparseVec, SparseView, ID};
 use std::any::TypeId;
@@ -53,12 +54,12 @@ impl ComponentBufferSparseSet {
 
     pub fn remove(&mut self, ett: Entity) -> Option<usize> {
         let removed_index: usize = { self.entities.remove(ett.id, ett.version) }?;
-
         let last_dense_index = self.component_buffer.len - 1;
-
         let last_entity = self.entity_to_component[last_dense_index];
+
         if last_entity.eq(&ett) {
             self.component_buffer.len -= 1;
+            self.entity_to_component.pop();
             return Some(removed_index);
         }
 
@@ -71,6 +72,7 @@ impl ComponentBufferSparseSet {
             .swap(removed_index, last_dense_index);
         self.component_buffer
             .swap_untyped(removed_index, last_dense_index);
+        self.entity_to_component.pop();
         self.component_buffer.len -= 1;
 
         Some(removed_index)
@@ -344,6 +346,64 @@ impl ComponentStorage {
     {
         let component_type_id = TypeId::of::<T>();
         self.storages_index_by_type_id[&component_type_id]
+    }
+
+    pub fn ungroup(&mut self, entity: Entity, input_group: GroupMask, archetypes: &mut ArchetypesManager) -> bool {
+        let groups_option = archetypes.get_supersets(&input_group, MatchType::Partial);
+        let mut ungrouped: bool = false;
+
+        for group in groups_option.unwrap_or(&mut []) {
+            if group.len == 0 {
+                continue;
+            }
+            if !group.mask.intersects(&input_group) {
+                break;
+            }
+            let mut has_swaped: bool = false;
+            let mut all_masks = group.mask;
+
+            while !all_masks.is_empty() {
+                let store_id = all_masks.least_one() as usize;
+                all_masks.and(all_masks.get_raw() - 1);
+
+                let mut store = self.get_storage_mut_by_id(store_id);
+                let entity_index = store.get_entity_index(entity);
+
+                if let Some(entity_index) = entity_index {
+                    // NOTE(JuH): the entity is not part of this superset
+                    if entity_index >= group.len as usize {
+                        continue;
+                    }
+
+                    let swap_index: usize = group.len as usize - 1;
+
+                    if swap_index != entity_index {
+                        let last_entity = store.get_entity(swap_index).unwrap();
+                        has_swaped |= store.swap_untyped(entity, last_entity);
+
+                        println!(
+                            "swaped entity: {:?}[{}] <-> {:?}[{}] (store: {}, gid: {})",
+                            entity,
+                            entity_index,
+                            last_entity,
+                            swap_index,
+                            store_id,
+                            group.mask.get_raw()
+                        );
+                    } else {
+                        has_swaped = true;
+                    }
+                }
+            }
+
+            if has_swaped {
+                println!("reduce group len by 1 for gid: {}", group.mask.get_raw());
+                group.len -= 1;
+                ungrouped = true;
+            }
+        }
+
+        ungrouped
     }
 
     pub fn reset(&mut self) {

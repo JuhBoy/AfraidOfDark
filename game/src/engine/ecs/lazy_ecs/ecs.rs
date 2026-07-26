@@ -31,7 +31,7 @@ impl ECSStats {
         })
     }
 
-    pub fn reset(&mut self) { 
+    pub fn reset(&mut self) {
         self.archetypes_broken = 0;
     }
 }
@@ -73,6 +73,16 @@ pub struct ECS {
     pub stats: RefCell<ECSStats>,
 }
 impl ECS {
+    pub fn default() -> Self {
+        ECS {
+            entity_storage: EntityStorage::new(2000),
+            component_storage: ComponentStorage::new(100),
+            update_systems: vec![],
+            archetypes: RefCell::new(ArchetypesManager::new()),
+            stats: ECSStats::new(),
+        }
+    }
+
     pub fn update(&mut self) {
         let ptr = self as *mut ECS;
 
@@ -274,6 +284,13 @@ impl ECS {
             return false;
         }
 
+        if let Some(entity_group) = entity_group {
+            let archetypes = &mut self.archetypes.borrow_mut();
+            let _ungrouped = self
+                .component_storage
+                .ungroup(entity, entity_group, archetypes);
+        }
+
         if let Some(mut entity_group) = entity_group {
             while !entity_group.is_empty() {
                 let store_id: usize = entity_group.least_one() as usize;
@@ -291,7 +308,7 @@ impl ECS {
         true
     }
 
-    pub fn reset(&mut self) { 
+    pub fn reset(&mut self) {
         self.entity_storage.reset();
         self.component_storage.reset();
         self.update_systems.clear();

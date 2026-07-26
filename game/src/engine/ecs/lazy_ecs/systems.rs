@@ -4,7 +4,7 @@ use crate::engine::ecs::lazy_ecs::ecs::ECS;
 use crate::engine::ecs::lazy_ecs::queries::TQuery;
 use std::marker::PhantomData;
 
-pub enum SystemUpdate {
+pub enum SystemUpdateType {
     Update,
     FixedUpdate,
     LateUpdate,
@@ -209,13 +209,13 @@ pub struct System {
     pub name: &'static str,
 
     pub system_index: i32,
-    pub update_type: SystemUpdate,
+    pub update_type: SystemUpdateType,
     pub action: fn(&mut SystemParams),
 }
 
 pub fn make_system(
     name: &'static str,
-    update_type: SystemUpdate,
+    update_type: SystemUpdateType,
     action: fn(&mut SystemParams),
 ) -> System {
     System {
