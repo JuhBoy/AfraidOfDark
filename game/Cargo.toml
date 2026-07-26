@@ -3,6 +3,9 @@ name = "afraid_of_dark"
 version = "0.1.0"
 edition = "2021"
 
+[profile.dev]
+debug-assertions = true 
+
 [features]
 default = ["opengl"]
 opengl = []
@@ -10,6 +13,7 @@ opengl = []
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+lazy-macro = { path = "src/engine/ecs/lazy_ecs/lazy-macro" }
 assets = { path = "src/engine/assets" }
 rustc-serialize = "0.3" # needed by glm @todo! remove glm and use custom math lib or a maintained one
 bevy_ecs = ">= 0.16.1"

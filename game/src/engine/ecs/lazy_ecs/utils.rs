@@ -1,7 +1,7 @@
 use std::alloc::{alloc, dealloc, Layout};
 use std::any::TypeId;
 use std::cmp::max;
-use std::ptr::{self, NonNull};
+use std::ptr::{self, drop_in_place, NonNull};
 
 pub trait ID {
     fn id(&self) -> usize;
@@ -23,6 +23,12 @@ pub struct ByteBufferTypeInfo {
     pub type_id: TypeId,
     pub bytes_len: usize,
     pub layout: Layout,
+    pub drop_fn: unsafe fn(*mut u8),
+}
+
+// this will run component destructor, in order to free data like String, Vec etc..
+pub unsafe fn drop_value<T>(ptr: *mut u8) {
+    ptr.cast::<T>().drop_in_place();
 }
 
 impl ByteBuffer {
@@ -49,6 +55,7 @@ impl ByteBuffer {
                 type_id: TypeId::of::<T>(),
                 bytes_len: size_of::<T>(),
                 layout: layout,
+                drop_fn: drop_value::<T>,
             },
         })
     }
@@ -76,8 +83,9 @@ impl ByteBuffer {
         }
 
         unsafe {
-            let ptr = self.data.as_ptr().add(index * size_of::<T>()) as *mut T;
-            ptr.write(data);
+            let ptr = self.data.as_ptr().add(index * size_of::<T>());
+            drop_value::<T>(ptr);
+            (ptr as *mut T).write(data);
         }
 
         true
@@ -98,7 +106,7 @@ impl ByteBuffer {
     }
 
     pub fn swap_untyped(&mut self, index_a: usize, index_b: usize) -> bool {
-        if index_a >= self.len || index_b >= self.len {
+        if index_a >= self.len || index_b >= self.len || index_a == index_b {
             return false;
         }
 

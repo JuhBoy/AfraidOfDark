@@ -14,7 +14,7 @@ fn entity_can_be_created_with_one_component() {
     let mut ecs = create_ecs();
     ecs.allocate_storage::<A>();
 
-    let entity_res_a = ecs.create::<(A,)>((A {},));
+    let entity_res_a = ecs.create::<(A,)>((A::new(),));
     let mut entity_a: Entity = Entity::null();
 
     match entity_res_a {
@@ -36,7 +36,7 @@ fn entity_can_be_created_with_component_bundle() {
     ecs.allocate_storage::<A>();
     ecs.allocate_storage::<B>();
 
-    let entity_res_ab = ecs.create::<(A, B)>((A {}, B {}));
+    let entity_res_ab = ecs.create::<(A, B)>((A::new(), B {}));
 
     let EntityCreateResult::Ungrouped(entity_ab) = entity_res_ab else {
         panic!("failed to create entity with A and B component");
@@ -118,7 +118,7 @@ fn contains_component_returns_true_for_present_component() {
     let mut ecs = create_ecs();
     ecs.allocate_storages::<(A, B, C)>();
 
-    let entity = ecs.create::<(A, B, C)>((A {}, B {}, C {}));
+    let entity = ecs.create::<(A, B, C)>((A::new(), B {}, C {}));
 
     let EntityCreateResult::Ungrouped(entity) = entity else {
         panic!("failed to created entity with component AData");
@@ -135,7 +135,7 @@ fn contains_component_returns_false_for_missing_component() {
     let mut ecs = create_ecs();
     ecs.allocate_storages::<(A, B, C)>();
 
-    let entity = ecs.create::<(A, C)>((A {}, C {}));
+    let entity = ecs.create::<(A, C)>((A::new(), C {}));
 
     let EntityCreateResult::Ungrouped(entity) = entity else {
         panic!("failed to created entity with component AData");
@@ -152,7 +152,7 @@ fn inserting_component_preserves_existing_components() {
     let mut ecs = create_ecs();
     ecs.allocate_storages::<(A, B, C)>();
 
-    let entity = ecs.create::<(A,)>((A {},));
+    let entity = ecs.create::<(A,)>((A::new(),));
 
     let EntityCreateResult::Ungrouped(entity) = entity else {
         panic!("failed to created entity with component AData");
@@ -180,7 +180,7 @@ fn removing_component_preserves_other_components() {
     let mut ecs = create_ecs();
     ecs.allocate_storages::<(A, B, C)>();
 
-    let entity = ecs.create::<(A, B, C)>((A {}, B {}, C {}));
+    let entity = ecs.create::<(A, B, C)>((A::new(), B {}, C {}));
 
     let EntityCreateResult::Ungrouped(entity) = entity else {
         panic!("failed to created entity with component AData");
@@ -201,7 +201,7 @@ fn removing_missing_component_fails_safely() {
     let mut ecs = create_ecs();
     ecs.allocate_storages::<(A, B, C)>();
 
-    let entity = ecs.create::<(A,)>((A {},));
+    let entity = ecs.create::<(A,)>((A::new(),));
 
     let EntityCreateResult::Ungrouped(entity) = entity else {
         panic!("failed to created entity with component AData");
@@ -257,7 +257,7 @@ fn component_cannot_be_inserted_into_destroyed_entity() {
 
     assert!(ecs.destroy(entity));
 
-    let update_res = ecs.add_component::<(A,)>(entity, (A {},));
+    let update_res = ecs.add_component::<(A,)>(entity, (A::new(),));
     let EntityUpdateResult::Failed(_failed_res) = update_res else {
         panic!("the add component should not be a success");
     };
@@ -270,7 +270,7 @@ fn component_cannot_be_read_from_destroyed_entity() {
 
     ecs.allocate_storages::<(A, B, C)>();
 
-    let entity = ecs.create::<(A,)>((A {},));
+    let entity = ecs.create::<(A,)>((A::new(),));
 
     let EntityCreateResult::Ungrouped(entity) = entity else {
         panic!("failed to created entity with component AData");
@@ -290,7 +290,7 @@ fn component_cannot_be_mutated_on_destroyed_entity() {
 
     ecs.allocate_storages::<(A, B, C)>();
 
-    let entity = ecs.create::<(A,)>((A {},));
+    let entity = ecs.create::<(A,)>((A::new(),));
 
     let EntityCreateResult::Ungrouped(entity) = entity else {
         panic!("failed to created entity with component AData");
@@ -351,7 +351,7 @@ fn component_storage_can_be_reused_after_becoming_empty() {
         assert_eq!(1, archetypes.flush_archetypes(&mut ecs.component_storage));
     }
 
-    let entity = ecs.create::<(A,)>((A {},));
+    let entity = ecs.create::<(A,)>((A::new(),));
 
     let EntityCreateResult::Ungrouped(entity) = entity else {
         panic!("failed to created entity with component AData");

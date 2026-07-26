@@ -1,5 +1,7 @@
 use std::cell::RefCell;
 
+use lazy_macro::lazy_ecs_component;
+
 use crate::engine::ecs::lazy_ecs::{
     archetypes::{ArchetypesManager, ComponentData, ComponentSet},
     components::ComponentStorage,
@@ -7,8 +9,8 @@ use crate::engine::ecs::lazy_ecs::{
     entities::EntityStorage,
 };
 
-#[derive(Clone, Copy)]
-pub struct A;
+#[lazy_ecs_component]
+pub struct A {}
 
 #[derive(Clone, Copy)]
 pub struct B;
@@ -75,15 +77,16 @@ pub fn create_archetypes(ecs: &mut ECS, components: Vec<&'static [ComponentData]
 pub fn create_entities<TComponentSet>(
     ecs: &mut ECS,
     count: usize,
-    components: &TComponentSet,
+    components: fn(usize) -> TComponentSet,
 ) -> Vec<GroupedEntity>
 where
-    TComponentSet: ComponentSet + 'static + Copy,
+    TComponentSet: ComponentSet + 'static,
 {
     let mut entities_buffer: Vec<GroupedEntity> = Vec::with_capacity(count);
 
     for i in 0..count {
-        let create_res = ecs.create(*components);
+        let comp_set = (components)(i);
+        let create_res = ecs.create(comp_set);
 
         match create_res {
             EntityCreateResult::Failed(reason) => {

@@ -1,19 +1,29 @@
+use glfw::Key::W;
+
+use crate::engine::ecs::lazy_ecs::utils::{GroupMask, SparseVec};
 use crate::engine::ecs::lazy_ecs::{
     archetypes::{ComponentData, ComponentSet},
     components::ComponentStorage,
     ecs::{EntityUpdateResult, ECS},
     entities::EntityMetadata,
-    systems::SystemUpdate,
+    systems::SystemUpdateType,
 };
 use crate::engine::ecs::lazy_ecs::{
     components::ComponentBufferSparseSet,
     entities::{Entity, EntityAllocator, EntityStorage},
     utils::{ByteBuffer, SparseSet},
 };
-use crate::engine::ecs::lazy_ecs::utils::{GroupMask, SparseVec};
-use crate::{engine::ecs::lazy_ecs::{
-    archetypes::{ArchetypesManager, MatchType}, ecs::{ECSStats, EntityCreateResult}, systems::{make_system, Query, SystemParams},
-}, tests::sparce_ecs_tests::ecs_test_helpers::{create_archetypes, create_ecs, create_entities, A, B, C, D, E, GROUP_AB, GROUP_ABC, GROUP_ABCD, GROUP_ABCDE}};
+use crate::{
+    engine::ecs::lazy_ecs::{
+        archetypes::{ArchetypesManager, MatchType},
+        ecs::{ECSStats, EntityCreateResult},
+        systems::{make_system, Query, SystemParams},
+    },
+    tests::sparce_ecs_tests::ecs_test_helpers::{
+        create_archetypes, create_ecs, create_entities, A, B, C, D, E, GROUP_AB, GROUP_ABC,
+        GROUP_ABCD, GROUP_ABCDE,
+    },
+};
 use std::{cell::RefCell, collections::HashSet, time::SystemTime};
 
 #[allow(dead_code)]
@@ -277,7 +287,7 @@ pub fn test_ecs_implementation() {
     let _entity = ecs.entity_storage.create();
 
     // register one system
-    let system = make_system("the one system", SystemUpdate::Update, iter_test_system);
+    let system = make_system("the one system", SystemUpdateType::Update, iter_test_system);
     ecs.register_system(system);
 
     // registries
@@ -522,12 +532,12 @@ pub fn test_should_find_group_for_queries() {
         let result: EntityCreateResult;
 
         if i == 4 || i == 8 {
-            result = ecs.create((A {}, B {}, C {}, E {}));
+            result = ecs.create((A::new(), B {}, C {}, E {}));
             assert!(matches!(result, EntityCreateResult::Grouped(_)));
         } else if i % 2 == 0 {
-            result = ecs.create((A {}, C {}));
+            result = ecs.create((A::new(), C {}));
         } else {
-            result = ecs.create((A {}, B {}));
+            result = ecs.create((A::new(), B {}));
             assert!(matches!(result, EntityCreateResult::Grouped(_)));
         }
 
@@ -585,9 +595,9 @@ pub fn test_should_find_group_for_queries() {
         assert_eq!(2, runtime_group.len);
     }
 
-    _ = ecs.create((A {}, E {}));
-    _ = ecs.create((A {}, E {}));
-    _ = ecs.create((A {}, E {}));
+    _ = ecs.create((A::new(), E {}));
+    _ = ecs.create((A::new(), E {}));
+    _ = ecs.create((A::new(), E {}));
 
     // assert a group has been found for this query
     let query: Query<(A, B)> = Query::new(&ecs);
@@ -619,10 +629,10 @@ fn test_ungrouping() -> () {
     mask_ab.or((1 << amask) | (1 << bmask));
 
     // create entities ==========
-    let entity_abc = ecs.create((A {}, B {}, C {}));
-    let _entity_ab_1 = ecs.create((A {}, B {}));
-    let _entity_ab_2 = ecs.create((A {}, B {}));
-    let entity_ab_3 = ecs.create((A {}, B {}));
+    let entity_abc = ecs.create((A::new(), B {}, C {}));
+    let _entity_ab_1 = ecs.create((A::new(), B {}));
+    let _entity_ab_2 = ecs.create((A::new(), B {}));
+    let entity_ab_3 = ecs.create((A::new(), B {}));
     let mut entity: Entity = Entity::null();
     let mut grouped = false;
     match entity_abc {
@@ -801,10 +811,10 @@ pub fn test_entity_overflow_grouping() {
     create_archetypes(&mut ecs, vec![GROUP_ABCDE, GROUP_ABCD, GROUP_ABC, GROUP_AB]);
 
     // NOTE(JuH): 15A, 12B, 2C
-    let a_etts = create_entities(&mut ecs, 3, &(A,));
-    let ab_etts = create_entities(&mut ecs, 10, &(A, B));
-    let abc_etts = create_entities(&mut ecs, 2, &(A, B, C));
-    let abcd_etts = create_entities(&mut ecs, 5, &(A, B, C, D));
+    let a_etts = create_entities(&mut ecs, 3, |i| (A::new(),));
+    let ab_etts = create_entities(&mut ecs, 10, |i| (A::new(), B {}));
+    let abc_etts = create_entities(&mut ecs, 2, |i| (A::new(), B {}, C {}));
+    let abcd_etts = create_entities(&mut ecs, 5, |i| (A::new(), B {}, C {}, D {}));
 
     // assert entity are very far
     {
@@ -907,8 +917,8 @@ pub fn test_layout_sync_when_group_overlaps() {
     let mut ecs = create_ecs();
     create_archetypes(&mut ecs, vec![GROUP_ABCDE, GROUP_ABCD, GROUP_ABC, GROUP_AB]);
 
-    let ab_etts = create_entities(&mut ecs, 10, &(A, B));
-    let _abc_etts = create_entities(&mut ecs, 2, &(A, B, C));
+    let ab_etts = create_entities(&mut ecs, 10, |i| (A::new(), B));
+    let _abc_etts = create_entities(&mut ecs, 2, |i| (A::new(), B, C));
 
     for ett in ab_etts.iter() {
         let result = ecs.add_component::<(C,)>(ett.entity, (C {},));
