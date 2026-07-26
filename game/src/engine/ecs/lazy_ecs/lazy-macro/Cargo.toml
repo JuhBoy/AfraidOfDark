@@ -1,0 +1,9 @@
+[lib]
+proc-macro = true
+
+[package]
+name = "lazy-macro"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
