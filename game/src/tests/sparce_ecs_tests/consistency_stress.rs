@@ -50,6 +50,7 @@ fn fragmented_storage_preserves_query_correctness() {
     let query: Query<(A, B)> = Query::new(&ecs);
     assert_eq!(4, query.iter().count());
     assert_eq!(0, ecs.stats.borrow().archetypes_broken);
+    assert!(ecs.archetypes.borrow().archetypes.iter().all(|a| a.groups.iter().all(|g| g.len == 4)));
 
     for (_e, a, _b) in query.iter() {
         let name = a.debug_name();

@@ -704,7 +704,7 @@ fn test_ungrouping() -> () {
     {
         {
             let mut archetypes = ecs.archetypes.borrow_mut();
-            let groups = archetypes.get_supersets_with_archetype(0, &mask_abc, MatchType::Exact);
+            let groups = archetypes.get_supersets_with_archetype(0, &mask_abc, MatchType::Exact).unwrap();
 
             assert!(mask_ab.is_match(&groups[1].mask));
             assert_eq!(3, groups[1].len);
@@ -723,7 +723,7 @@ fn test_ungrouping() -> () {
     // [1] A B
     {
         let mut archetypes = ecs.archetypes.borrow_mut();
-        let groups = archetypes.get_supersets_with_archetype(0, &mask_abc, MatchType::Exact);
+        let groups = archetypes.get_supersets_with_archetype(0, &mask_abc, MatchType::Exact).unwrap();
 
         assert!(mask_abc.is_match(&groups[0].mask));
         assert_eq!(0, groups[0].len);
@@ -766,7 +766,7 @@ fn test_ungrouping() -> () {
     {
         {
             let mut archetypes = ecs.archetypes.borrow_mut();
-            let groups = archetypes.get_supersets_with_archetype(0, &mask_abc, MatchType::Exact);
+            let groups = archetypes.get_supersets_with_archetype(0, &mask_abc, MatchType::Exact).unwrap();
 
             assert_eq!(0, groups[0].len);
             assert_eq!(3, groups[1].len);
@@ -784,7 +784,7 @@ fn test_ungrouping() -> () {
 
         {
             let mut archetypes = ecs.archetypes.borrow_mut();
-            let groups = archetypes.get_supersets_with_archetype(0, &mask_abc, MatchType::Exact);
+            let groups = archetypes.get_supersets_with_archetype(0, &mask_abc, MatchType::Exact).unwrap();
 
             assert_eq!(1, groups[0].len);
             assert_eq!(4, groups[1].len);

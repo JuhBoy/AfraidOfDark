@@ -68,12 +68,12 @@ impl ArchetypesManager {
         arch_id: usize,
         group_mask: &GroupMask,
         match_type: MatchType,
-    ) -> &mut [RuntimeGroup] {
+    ) -> Option<&mut [RuntimeGroup]> {
         let archetype = self
             .archetypes
             .get(arch_id)
             .expect("archetype index is invalid");
-        let mut start = 0;
+        let mut start: Option<usize> = None;
         let group_len = archetype.groups_len();
 
         for (i, group) in archetype.groups.iter().enumerate() {
@@ -85,11 +85,15 @@ impl ArchetypesManager {
                 continue;
             }
 
-            start = i;
+            start = Some(i);
             break;
         }
 
-        &mut self.archetypes[arch_id].groups[start..group_len]
+        let Some(start) = start else { 
+            return None;
+        };
+
+        Some(&mut self.archetypes[arch_id].groups[start..group_len])
     }
 
     pub fn get_supersets(
@@ -496,7 +500,7 @@ macro_rules! generate_component_set {
 
             // NOTE(JuH): updating path is way lower in performances because most of the computation is note expanded by the macro
             if is_updating {
-                let supersets = archetypes.get_supersets_with_archetype(archetype_id, &runtime_group.mask, MatchType::Exact);
+                let supersets = archetypes.get_supersets_with_archetype(archetype_id, &runtime_group.mask, MatchType::Exact).unwrap();
                 let mut should_incr = false;
 
                 for index in (0..supersets.len()).rev() {
@@ -550,7 +554,7 @@ macro_rules! generate_component_set {
                 let mut stores = ($(storage.get_storage_mut::<$components>(),)*);
                 let mut swapping_entities: [Entity; $count] = [*entity; $count];
 
-                let supersets = archetypes.get_supersets_with_archetype(archetype_id, &runtime_group.mask, MatchType::Exact);
+                let supersets = archetypes.get_supersets_with_archetype(archetype_id, &runtime_group.mask, MatchType::Exact).unwrap();
 
                 (0..supersets.len()).for_each(|superset_id| {
                     let superset = &mut supersets[superset_id];
