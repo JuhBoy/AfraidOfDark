@@ -167,6 +167,19 @@ impl ByteBuffer {
             true
         }
     }
+
+    pub fn drop(&mut self, index: usize) -> bool {
+        assert!(
+            index >= self.len,
+            "cannot drop a compoenent that is still part of the buffer region"
+        );
+
+        unsafe {
+            let ptr = self.data.as_ptr().add(index * self.type_info.bytes_len);
+            (self.type_info.drop_fn)(ptr);
+            true
+        }
+    }
 }
 
 /// ============================

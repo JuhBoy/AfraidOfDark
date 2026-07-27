@@ -74,6 +74,7 @@ impl ComponentBufferSparseSet {
             .swap_untyped(removed_index, last_dense_index);
         self.entity_to_component.pop();
         self.component_buffer.len -= 1;
+        self.component_buffer.drop(last_dense_index);
 
         Some(removed_index)
     }
