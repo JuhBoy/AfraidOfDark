@@ -33,6 +33,7 @@ fn fragmented_storage_preserves_query_correctness() {
 
     for i in 0..5 {
         let mut a = A::new();
+        #[cfg(debug_assertions)]
         a.set_debug_name(String::from(format!("{}", i)));
         let b = B {};
 
@@ -50,14 +51,22 @@ fn fragmented_storage_preserves_query_correctness() {
     let query: Query<(A, B)> = Query::new(&ecs);
     assert_eq!(4, query.iter().count());
     assert_eq!(0, ecs.stats.borrow().archetypes_broken);
-    assert!(ecs.archetypes.borrow().archetypes.iter().all(|a| a.groups.iter().all(|g| g.len == 4)));
+    assert!(ecs
+        .archetypes
+        .borrow()
+        .archetypes
+        .iter()
+        .all(|a| a.groups.iter().all(|g| g.len == 4)));
 
     for (_e, a, _b) in query.iter() {
-        let name = a.debug_name();
-        let insertion_id: usize = name.parse().unwrap();
+        #[cfg(debug_assertions)]
+        {
+            let name = a.debug_name();
+            let insertion_id: usize = name.parse().unwrap();
 
-        assert_ne!(3, insertion_id);
-        assert!(insertion_id < 5);
+            assert_ne!(3, insertion_id);
+            assert!(insertion_id < 5);
+        }
     }
 }
 

@@ -5,9 +5,9 @@
 ### Viewport & ECS
 - [X] Update the viewport size in the OpenGL side
 - [X] Pass viewport change from ECS to the rendering system
-- [ ] Destroying a grouped entity does not update runtime-group lengths
-- [ ] get_supersets_with_archetype returns the entire slice when no group matches
-- [0] FIX ByteBuffer drop values
+- [X] Destroying a grouped entity does not update runtime-group lengths
+- [X] get_supersets_with_archetype returns the entire slice when no group matches
+- [X] FIX ByteBuffer drop values
 
 ### Input System
 - [X] Add Keyboard input system to handle keyboard events in ECS

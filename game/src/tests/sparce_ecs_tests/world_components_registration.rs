@@ -1,3 +1,8 @@
+use crate::{
+    engine::ecs::lazy_ecs::{archetypes::ComponentData, ecs::EntityCreateResult},
+    tests::sparce_ecs_tests::ecs_test_helpers::{create_ecs, A, B},
+};
+
 // Verifies that a newly constructed world contains no entities.
 #[test]
 fn new_world_is_empty() {}
@@ -49,3 +54,25 @@ fn inserting_unregistered_component_follows_registration_policy() {}
 // Verifies that querying an unregistered component follows the documented registration policy.
 #[test]
 fn querying_unregistered_component_follows_registration_policy() {}
+
+#[test]
+fn removing_last_components_drop_its_values() {
+    let mut ecs = create_ecs();
+    ecs.allocate_storage::<(A, B)>();
+
+    assert!(ecs.make_archetype::<(A, B)>());
+    assert_eq!(1, ecs.flush_archetypes());
+
+    let entity = ecs.create::<(A,)>((A::new(),));
+    assert!(matches!(entity, EntityCreateResult::Ungrouped(_)));
+
+    let EntityCreateResult::Ungrouped(entity) = entity else { 
+        panic!("")
+    };
+
+    assert!(ecs.destroy(entity));
+    assert!(!ecs.destroy(entity));
+
+    let len = ecs.component_storage.get_storage_by_id(0).component_buffer.len;
+    assert_eq!(0, len);
+}

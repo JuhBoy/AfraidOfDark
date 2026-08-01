@@ -9,6 +9,8 @@ debug-assertions = true
 [features]
 default = ["opengl"]
 opengl = []
+ecs_queries_logs = []
+ecs_full_logs = ["ecs_queries_logs"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

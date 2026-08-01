@@ -113,11 +113,15 @@ macro_rules! generate_query {
                 );*;
 
                 let group = arch_manager.find_group(&query_mask);
-                if let Some(matching_group) = group {
-                    println!(
-                        "[system.rs] Group found for query (gm: {:?}, len: {}) [{:?}]",
-                        matching_group.mask, matching_group.len, query_mask
-                    );
+
+                #[cfg(feature = "ecs_queries_logs")]
+                {
+                    if let Some(matching_group) = group {
+                        println!(
+                            "[system.rs] Group found for query (gm: {:?}, len: {}) [{:?}]",
+                            matching_group.mask, matching_group.len, query_mask
+                        );
+                    }
                 }
 
                 group

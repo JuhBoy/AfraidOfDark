@@ -52,9 +52,20 @@ pub const GROUP_ABCDE: &[ComponentData] = &[
 ];
 
 pub fn create_ecs() -> ECS {
-    let mut ecs = ECS {
+    let ecs = ECS {
         entity_storage: EntityStorage::new(2000),
-        component_storage: ComponentStorage::new(100),
+        component_storage: ComponentStorage::new(100, 2000),
+        update_systems: vec![],
+        archetypes: RefCell::new(ArchetypesManager::new()),
+        stats: ECSStats::new(),
+    };
+    ecs
+}
+
+pub fn create_ecs_with_capacities(entities: usize, components: usize) -> ECS { 
+    let ecs = ECS {
+        entity_storage: EntityStorage::new(entities),
+        component_storage: ComponentStorage::new(100, components),
         update_systems: vec![],
         archetypes: RefCell::new(ArchetypesManager::new()),
         stats: ECSStats::new(),

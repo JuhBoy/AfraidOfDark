@@ -89,7 +89,7 @@ impl ArchetypesManager {
             break;
         }
 
-        let Some(start) = start else { 
+        let Some(start) = start else {
             return None;
         };
 
@@ -302,7 +302,7 @@ impl ArchetypesManager {
         true
     }
 
-    pub fn reset(&mut self) { 
+    pub fn reset(&mut self) {
         self.archetypes.clear();
         self.layouts.clear();
     }
@@ -491,10 +491,13 @@ macro_rules! generate_component_set {
 
             // it is completely ok to fail grouping when no matching runtime groups exist
             let Some((archetype_id, runtime_group)) = archetype else {
+
+                #[cfg(feature = "ecs_full_logs")]
                 {
                     let entity_id = entity.id;
                     println!("entity {entity_id} has no matching group");
                 }
+
                 return false;
             };
 
@@ -598,7 +601,7 @@ macro_rules! generate_component_set {
                 let store = &mut stores.$index;
                 let removed = store.remove(entity);
 
-                if removed.is_some() { 
+                if removed.is_some() {
                     removed_count += 1;
                 }
             })*

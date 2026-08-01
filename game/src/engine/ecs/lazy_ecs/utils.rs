@@ -122,6 +122,16 @@ impl ByteBuffer {
         true
     }
 
+    #[allow(unused_results)]
+    pub fn remove_last(&mut self) -> bool {
+        if self.len == 0 {
+            return false;
+        }
+
+        self.len -= 1;
+        self.drop(self.len)
+    }
+
     pub fn get_ref<'a, T>(&self, index: usize) -> Option<&'a T> {
         if index >= self.len {
             return None;
@@ -177,8 +187,9 @@ impl ByteBuffer {
         unsafe {
             let ptr = self.data.as_ptr().add(index * self.type_info.bytes_len);
             (self.type_info.drop_fn)(ptr);
-            true
         }
+
+        true
     }
 }
 

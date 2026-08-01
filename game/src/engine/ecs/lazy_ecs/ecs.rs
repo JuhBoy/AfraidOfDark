@@ -76,7 +76,7 @@ impl ECS {
     pub fn default() -> Self {
         ECS {
             entity_storage: EntityStorage::new(2000),
-            component_storage: ComponentStorage::new(100),
+            component_storage: ComponentStorage::new(10, 100),
             update_systems: vec![],
             archetypes: RefCell::new(ArchetypesManager::new()),
             stats: ECSStats::new(),

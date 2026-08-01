@@ -277,7 +277,7 @@ pub fn test_component_storage() {
 pub fn test_ecs_implementation() {
     let mut ecs = ECS {
         entity_storage: EntityStorage::new(2000),
-        component_storage: ComponentStorage::new(100),
+        component_storage: ComponentStorage::new(100, 2000),
         update_systems: vec![],
         archetypes: RefCell::new(ArchetypesManager::new()),
         stats: ECSStats::new(),
@@ -432,7 +432,7 @@ pub fn test_archetypes_registers() {
 #[test]
 pub fn test_should_flush_archetypes() {
     let mut manager = ArchetypesManager::new();
-    let mut component_storage = ComponentStorage::new(1000);
+    let mut component_storage = ComponentStorage::new(1000, 1000);
 
     const FIRST_GROUP: &[ComponentData] = &[ComponentData::new::<A>(), ComponentData::new::<B>()];
     const SECOND_GROUP: &[ComponentData] = &[
@@ -491,7 +491,7 @@ pub fn test_should_flush_archetypes() {
 pub fn test_should_find_group_for_queries() {
     let mut ecs = ECS {
         entity_storage: EntityStorage::new(2000),
-        component_storage: ComponentStorage::new(100),
+        component_storage: ComponentStorage::new(100, 2000),
         update_systems: vec![],
         archetypes: RefCell::new(ArchetypesManager::new()),
         stats: ECSStats::new(),

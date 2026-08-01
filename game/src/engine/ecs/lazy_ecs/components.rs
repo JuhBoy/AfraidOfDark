@@ -1,4 +1,5 @@
 use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
+use image::buffer;
 
 use crate::engine::ecs::lazy_ecs::archetypes::{ArchetypesManager, MatchType};
 use crate::engine::ecs::lazy_ecs::entities::Entity;
@@ -58,7 +59,7 @@ impl ComponentBufferSparseSet {
         let last_entity = self.entity_to_component[last_dense_index];
 
         if last_entity.eq(&ett) {
-            self.component_buffer.len -= 1;
+            self.component_buffer.remove_last();
             self.entity_to_component.pop();
             return Some(removed_index);
         }
@@ -73,8 +74,7 @@ impl ComponentBufferSparseSet {
         self.component_buffer
             .swap_untyped(removed_index, last_dense_index);
         self.entity_to_component.pop();
-        self.component_buffer.len -= 1;
-        self.component_buffer.drop(last_dense_index);
+        self.component_buffer.remove_last();
 
         Some(removed_index)
     }
@@ -222,13 +222,15 @@ pub struct ComponentStorage {
     pub(crate) storages: Vec<AtomicRefCell<ComponentBufferSparseSet>>,
 
     iterator_container: StoreIteratorContainer,
+    dense_buffer_capacity: usize,
 }
 impl ComponentStorage {
-    pub fn new(capacity: usize) -> Self {
+    pub fn new(capacity: usize, buffer_capacity: usize) -> Self {
         ComponentStorage {
             storages_index_by_type_id: HashMap::with_capacity(capacity),
             storages: Vec::with_capacity(capacity),
             iterator_container: StoreIteratorContainer::new(capacity),
+            dense_buffer_capacity: buffer_capacity,
         }
     }
 
@@ -242,8 +244,8 @@ impl ComponentStorage {
         };
 
         let storage = ComponentBufferSparseSet {
-            entities: SparseVec::new(2000),
-            component_buffer: ByteBuffer::with_capacity::<T>(2000).unwrap(),
+            entities: SparseVec::new(self.dense_buffer_capacity),
+            component_buffer: ByteBuffer::with_capacity::<T>(self.dense_buffer_capacity).unwrap(),
             entity_to_component: vec![],
         };
         self.storages.push(AtomicRefCell::new(storage));
