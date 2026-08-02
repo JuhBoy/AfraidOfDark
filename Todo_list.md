@@ -8,6 +8,11 @@
 - [X] Destroying a grouped entity does not update runtime-group lengths
 - [X] get_supersets_with_archetype returns the entire slice when no group matches
 - [X] FIX ByteBuffer drop values
+- [x] Implements ECS Resources
+	- [x] Remove ECS refs inside the query
+	- [x] Need refacto of archetypes ? (not yet)
+	- [x] Build query from the ECS impl (ecs.query<>()...)
+	- [x] Update query refs to interior mutability, allowing to iterate AND accessing to sub systems (stats, resources, storage..)
 
 ### Input System
 - [X] Add Keyboard input system to handle keyboard events in ECS

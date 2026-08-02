@@ -1,12 +1,14 @@
-use std::any::TypeId;
-use std::cell::RefCell;
+use std::any::{Any, TypeId};
+use std::cell::{Ref, RefCell, RefMut};
 
 use crate::engine::ecs::lazy_ecs::archetypes::{
     ArchetypeDefinition, ArchetypesManager, ComponentData,
 };
 use crate::engine::ecs::lazy_ecs::components::{ComponentMetaData, ComponentStorage};
 use crate::engine::ecs::lazy_ecs::entities::{Entity, EntityStorage};
-use crate::engine::ecs::lazy_ecs::systems::{System, SystemParams, TSystem};
+use crate::engine::ecs::lazy_ecs::queries::TQuery;
+use crate::engine::ecs::lazy_ecs::resources::{LazyResourceTrait, Resources};
+use crate::engine::ecs::lazy_ecs::systems::{Query, System, SystemParams, TSystem};
 
 use super::archetypes::ComponentSet;
 use super::utils::GroupMask;
@@ -71,6 +73,8 @@ pub struct ECS {
     pub update_systems: Vec<System>,
     pub archetypes: RefCell<ArchetypesManager>,
     pub stats: RefCell<ECSStats>,
+
+    pub(crate) resources: RefCell<Resources>,
 }
 impl ECS {
     pub fn default() -> Self {
@@ -80,7 +84,16 @@ impl ECS {
             update_systems: vec![],
             archetypes: RefCell::new(ArchetypesManager::new()),
             stats: ECSStats::new(),
+            resources: RefCell::new(Resources { data: vec![] }),
         }
+    }
+
+    pub fn resource_container(&self) -> Ref<'_, Resources> {
+        self.resources.borrow()
+    }
+
+    pub fn resource_container_mut(&self) -> RefMut<'_, Resources> {
+        self.resources.borrow_mut()
     }
 
     pub fn update(&mut self) {
@@ -96,10 +109,6 @@ impl ECS {
             }
         }
     }
-
-    pub fn fixed_update(&mut self) {}
-
-    pub fn late_update(&mut self) {}
 
     pub fn register_system(&mut self, system: System) {
         self.update_systems.push(system);
@@ -306,6 +315,21 @@ impl ECS {
         }
 
         true
+    }
+
+    pub fn make_query<T>(&self) -> Query<'_, T>
+    where
+        T: TQuery,
+    {
+        Query::new(self)
+    }
+
+    pub fn make_query_mut<T>(&mut self) -> Query<'_, T>
+    where
+        T: TQuery,
+    {
+        let query: Query<T> = Query::new(self);
+        query
     }
 
     pub fn reset(&mut self) {

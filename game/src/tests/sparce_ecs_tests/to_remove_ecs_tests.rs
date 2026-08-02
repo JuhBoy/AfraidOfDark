@@ -1,5 +1,6 @@
 use glfw::Key::W;
 
+use crate::engine::ecs::lazy_ecs::resources::Resources;
 use crate::engine::ecs::lazy_ecs::utils::{GroupMask, SparseVec};
 use crate::engine::ecs::lazy_ecs::{
     archetypes::{ComponentData, ComponentSet},
@@ -281,6 +282,8 @@ pub fn test_ecs_implementation() {
         update_systems: vec![],
         archetypes: RefCell::new(ArchetypesManager::new()),
         stats: ECSStats::new(),
+
+        resources: RefCell::new(Resources::new()) 
     };
 
     // create an entity
@@ -495,6 +498,8 @@ pub fn test_should_find_group_for_queries() {
         update_systems: vec![],
         archetypes: RefCell::new(ArchetypesManager::new()),
         stats: ECSStats::new(),
+
+        resources: RefCell::new(Resources::new()) 
     };
 
     const FIRST_GROUP: &[ComponentData] = &[ComponentData::new::<A>(), ComponentData::new::<B>()];

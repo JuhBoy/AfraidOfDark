@@ -1,5 +1,4 @@
 use atomic_refcell::{AtomicRef, AtomicRefCell, AtomicRefMut};
-use image::buffer;
 
 use crate::engine::ecs::lazy_ecs::archetypes::{ArchetypesManager, MatchType};
 use crate::engine::ecs::lazy_ecs::entities::Entity;

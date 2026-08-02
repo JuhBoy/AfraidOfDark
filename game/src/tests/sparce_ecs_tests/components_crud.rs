@@ -318,7 +318,7 @@ fn non_copy_component_supports_full_lifecycle() {
 
     assert!(ecs.has_component::<NonCopyA>(entity));
 
-    let mut query: Query<(NonCopyA,)> = Query::new(&mut ecs);
+    let query: Query<(NonCopyA,)> = Query::new(&ecs);
     assert_eq!(1, query.iter_mut().count());
 
     query.iter_mut().for_each(|a| {

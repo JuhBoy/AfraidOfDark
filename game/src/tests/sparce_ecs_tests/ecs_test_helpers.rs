@@ -2,11 +2,15 @@ use std::cell::RefCell;
 
 use lazy_macro::lazy_ecs_component;
 
-use crate::engine::ecs::lazy_ecs::{
-    archetypes::{ArchetypesManager, ComponentData, ComponentSet},
-    components::ComponentStorage,
-    ecs::{ECSStats, EntityCreateResult, GroupedEntity, ECS},
-    entities::EntityStorage,
+use crate::{
+    engine::ecs::lazy_ecs::{
+        archetypes::{ArchetypesManager, ComponentData, ComponentSet},
+        components::ComponentStorage,
+        ecs::{ECSStats, EntityCreateResult, GroupedEntity, ECS},
+        entities::EntityStorage,
+        resources::Resources,
+    },
+    make_lazy_resources, 
 };
 
 #[lazy_ecs_component]
@@ -30,6 +34,17 @@ pub struct AData(pub i32);
 pub struct NonCopyA {
     pub a: u32,
 }
+
+// NOTE(JuH): Exemple of resources, PlayerLife & PlayerMana needs the `make_lazy_resources!` macro to get the trait implemented
+// which grant them with indexes for the Resources container
+#[allow(dead_code)]
+pub struct PlayerLife {
+    pub value: i32,
+    pub name: String,
+}
+#[allow(dead_code)]
+pub struct PlayerMana(pub u32);
+make_lazy_resources!(PlayerLife, PlayerMana);
 
 pub const GROUP_AB: &[ComponentData] = &[ComponentData::new::<A>(), ComponentData::new::<B>()];
 pub const GROUP_ABC: &[ComponentData] = &[
@@ -58,17 +73,21 @@ pub fn create_ecs() -> ECS {
         update_systems: vec![],
         archetypes: RefCell::new(ArchetypesManager::new()),
         stats: ECSStats::new(),
+
+        resources: RefCell::new(Resources::new()),
     };
     ecs
 }
 
-pub fn create_ecs_with_capacities(entities: usize, components: usize) -> ECS { 
+pub fn create_ecs_with_capacities(entities: usize, components: usize) -> ECS {
     let ecs = ECS {
         entity_storage: EntityStorage::new(entities),
         component_storage: ComponentStorage::new(100, components),
         update_systems: vec![],
         archetypes: RefCell::new(ArchetypesManager::new()),
         stats: ECSStats::new(),
+
+        resources: RefCell::new(Resources::new()),
     };
     ecs
 }

@@ -1,6 +1,8 @@
 use crate::{
-    engine::ecs::lazy_ecs::{archetypes::ComponentData, ecs::EntityCreateResult},
-    tests::sparce_ecs_tests::ecs_test_helpers::{create_ecs, A, B},
+    engine::ecs::lazy_ecs::{
+        archetypes::ComponentData, ecs::EntityCreateResult, entities::Entity,
+        resources::LazyResourceTrait, systems::Query,
+    }, make_lazy_resources, make_lazy_resources_impl, tests::sparce_ecs_tests::ecs_test_helpers::{A, AData, B, PlayerLife, PlayerMana, create_ecs},
 };
 
 // Verifies that a newly constructed world contains no entities.
@@ -66,13 +68,45 @@ fn removing_last_components_drop_its_values() {
     let entity = ecs.create::<(A,)>((A::new(),));
     assert!(matches!(entity, EntityCreateResult::Ungrouped(_)));
 
-    let EntityCreateResult::Ungrouped(entity) = entity else { 
+    let EntityCreateResult::Ungrouped(entity) = entity else {
         panic!("")
     };
 
     assert!(ecs.destroy(entity));
     assert!(!ecs.destroy(entity));
 
-    let len = ecs.component_storage.get_storage_by_id(0).component_buffer.len;
+    let len = ecs
+        .component_storage
+        .get_storage_by_id(0)
+        .component_buffer
+        .len;
     assert_eq!(0, len);
+}
+
+#[test]
+pub fn mutable_query_can_access_and_modify_resource() {
+    let mut ecs = create_ecs();
+    ecs.allocate_storages::<(AData, B)>();
+    ecs.resource_container_mut().try_allocate(PlayerLife {
+        value: 13,
+        name: String::from("Life"),
+    });
+    ecs.resource_container_mut().try_allocate(PlayerMana(240));
+
+
+    let mut resources = ecs.resource_container_mut();
+    let mut prev = resources.get::<PlayerLife>().value - 1;
+
+    let query: Query<(AData,)> = Query::new(&ecs);
+
+    for (_e, a_comp) in query.iter_mut() {
+        let player_life: &mut PlayerLife = resources.get_mut::<PlayerLife>();
+        a_comp.0 = player_life.value;
+        player_life.value += prev;
+    }
+
+    for (_e, a_comp) in query.iter() {
+        assert_eq!(prev, a_comp.0 - 1);
+        prev += 1;
+    }
 }

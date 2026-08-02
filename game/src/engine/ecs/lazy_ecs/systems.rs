@@ -1,7 +1,13 @@
+use glfw::ffi::GLFW_WAYLAND_PREFER_LIBDECOR;
+use glfw::Key::W;
+
 use super::archetypes::RuntimeGroup;
 use super::entities::Entity;
-use crate::engine::ecs::lazy_ecs::ecs::ECS;
+use crate::engine::ecs::lazy_ecs::archetypes::{Archetype, ArchetypesManager};
+use crate::engine::ecs::lazy_ecs::components::ComponentStorage;
+use crate::engine::ecs::lazy_ecs::ecs::{ECSStats, ECS};
 use crate::engine::ecs::lazy_ecs::queries::TQuery;
+use std::cell::{Ref, RefCell, RefMut};
 use std::marker::PhantomData;
 
 pub enum SystemUpdateType {
@@ -16,11 +22,17 @@ pub struct SystemParams<'a> {
 
 ///////////////////////////////////
 
+pub struct QuerySystems<'a> {
+    pub storage: &'a ComponentStorage,
+    pub archetypes: Ref<'a, ArchetypesManager>,
+    pub stats: &'a RefCell<ECSStats>,
+}
+
 pub struct Query<'a, A>
 where
     A: TQuery,
 {
-    pub world: &'a ECS,
+    pub query_systems: QuerySystems<'a>,
     _phantom: PhantomData<A>,
 }
 
@@ -30,21 +42,25 @@ where
 {
     pub fn new(world: &'a ECS) -> Self {
         Self {
-            world,
+            query_systems: QuerySystems {
+                storage: &world.component_storage,
+                archetypes: world.archetypes.borrow(),
+                stats: &world.stats,
+            },
             _phantom: PhantomData,
         }
     }
 
-    pub fn iter(&self) -> QueryRef<'a, A> {
-        QueryRef::new(self.world)
+    pub fn iter(&'a self) -> QueryRef<'a, A> {
+        QueryRef::new(&self.query_systems)
     }
 
-    pub fn iter_mut(&mut self) -> QueryMut<'a, A> {
-        QueryMut::new(self.world)
+    pub fn iter_mut(&'a self) -> QueryMut<'a, A> {
+        QueryMut::new(&self.query_systems)
     }
 
-    pub fn iter_with_entity(&self) -> QueryRef<'a, A> {
-        QueryRef::new(self.world)
+    pub fn iter_with_entity(&'a self) -> QueryRef<'a, A> {
+        QueryRef::new(&self.query_systems)
     }
 }
 
@@ -52,7 +68,7 @@ pub struct QueryRef<'iter, A>
 where
     A: TQuery,
 {
-    pub world: &'iter ECS,
+    systems: &'iter QuerySystems<'iter>,
     pub entities: &'iter [Entity],
     pub group: Option<RuntimeGroup>,
     pub view: A::View<'iter>,
@@ -64,12 +80,12 @@ impl<'iter, A> QueryRef<'iter, A>
 where
     A: TQuery,
 {
-    fn new(world: &'iter ECS) -> Self {
-        let view = A::borrow_storage(world);
-        let group_with_entities = A::entities(world, &view);
+    fn new(world: &'iter QuerySystems<'iter>) -> Self {
+        let view = A::borrow_storage(world.storage);
+        let group_with_entities = A::entities(world.storage, &world.archetypes, &view);
 
         Self {
-            world,
+            systems: world,
             entities: group_with_entities.1,
             group: group_with_entities.0,
             view,
@@ -100,18 +116,18 @@ where
             let entity = self.entities[i];
             self.next = i + 1;
 
-            if !A::iter_predicate(entity, self.world, &self.view) {
+            if !A::iter_predicate(entity, self.systems.storage, &self.view) {
                 is_broken = true;
                 continue;
             }
 
-            let data = A::get_dense(entity, self.world, &self.view);
+            let data = A::get_dense(entity, self.systems.storage, &self.view);
 
             return Some(data);
         }
 
         if is_broken {
-            let mut borrow_stats = self.world.stats.borrow_mut();
+            let mut borrow_stats = self.systems.stats.borrow_mut();
             borrow_stats.archetypes_broken += 1
         }
 
@@ -123,7 +139,7 @@ pub struct QueryMut<'a, A>
 where
     A: TQuery,
 {
-    world: &'a ECS,
+    systems: &'a QuerySystems<'a>,
     entities: &'a [Entity],
     group: Option<RuntimeGroup>,
     view: A::View<'a>,
@@ -135,12 +151,12 @@ impl<'a, A> QueryMut<'a, A>
 where
     A: TQuery,
 {
-    pub fn new(world: &'a ECS) -> Self {
-        let view = A::borrow_storage_mut(world);
-        let group_with_entities = A::entities(world, &view);
+    pub fn new(world: &'a QuerySystems<'a>) -> Self {
+        let view = A::borrow_storage_mut(world.storage);
+        let group_with_entities = A::entities(world.storage, &world.archetypes, &view);
 
         Self {
-            world,
+            systems: world,
             view,
             _phantom: PhantomData,
             entities: group_with_entities.1,
@@ -172,19 +188,18 @@ where
             let entity = self.entities[i];
             self.next = i + 1;
 
-            if !A::iter_predicate(entity, self.world, &self.view) {
+            if !A::iter_predicate(entity, self.systems.storage, &self.view) {
                 is_broken = true;
                 continue;
             }
 
-            let data = A::get_dense_mut(entity, self.world, &self.view);
+            let data = A::get_dense_mut(entity, self.systems.storage, &self.view);
 
             return Some(data);
         }
 
         if is_broken {
-            let mut borrow_stats = self.world.stats.borrow_mut();
-            borrow_stats.archetypes_broken += 1
+            self.systems.stats.borrow_mut().archetypes_broken += 1
         }
 
         None
