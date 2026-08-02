@@ -1,6 +1,8 @@
 use std::any::Any;
 
 pub trait LazyResourceTrait {
+    const INDEX: usize;
+
     fn id() -> usize;
 }
 
@@ -46,8 +48,8 @@ impl Resources {
             let new_size = (id + 1).next_power_of_two();
             self.data.resize_with(new_size, || None);
         }
-    
-        if self.data[id].is_some() { 
+
+        if self.data[id].is_some() {
             return false;
         }
 
@@ -63,8 +65,10 @@ macro_rules! make_lazy_resources_impl {
 
     ($index:expr; $resource:ty $(, $rest:ty)*) => {
         impl $crate::engine::ecs::lazy_ecs::resources::LazyResourceTrait for $resource {
+            const INDEX: usize = $index;
+
             fn id() -> usize {
-                $index
+                Self::INDEX
             }
         }
 
