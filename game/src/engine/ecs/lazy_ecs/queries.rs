@@ -156,13 +156,12 @@ macro_rules! generate_query {
         }
 
         fn get_dense<'a>(entity: Entity, storage: &'a ComponentStorage, view: &Self::View<'_>) -> Self::Item<'a> {
-            let comps = ($(
-                   storage
-                    .get_storage_by_id(view.$index.store.index)
-                    .get::<$components>(entity).unwrap() as *const $components,
-            )*);
-
             unsafe {
+                let comps = ($(
+                    storage
+                        .get_storage_unchecked(view.$index.store.index)
+                        .get::<$components>(entity).unwrap() as *const $components,
+                )*);
                 (entity, $(&*comps.$index,)*)
             }
         }
@@ -172,13 +171,12 @@ macro_rules! generate_query {
             storage: &'a ComponentStorage,
             view: &Self::View<'_>,
         ) -> Self::ItemMut<'a> {
-            let components = ($(
-                storage
-                    .get_storage_mut_by_id(view.$index.store.index)
-                    .get_mut::<$components>(entity).unwrap() as *mut $components,
-            )*);
-
             unsafe {
+                let components = ($(
+                    storage.get_storage_unchecked_mut(view.$index.store.index)
+                        .get_mut::<$components>(entity).unwrap() as *mut $components,
+                )*);
+
                 (entity, $(&mut *components.$index,)*)
             }
         }

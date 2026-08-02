@@ -209,7 +209,7 @@ fn iterating_over_dense_set_is_faster_than_sparse() {
             let mut i: usize = 0;
             let now = Instant::now();
 
-            for (_e, _a, _b) in query_dense.iter() {
+            for (_e, _a, _b) in query_dense.iter_mut() {
                 i += 1;
             }
 

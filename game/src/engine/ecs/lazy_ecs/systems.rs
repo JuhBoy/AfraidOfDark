@@ -116,7 +116,7 @@ where
             let entity = self.entities[i];
             self.next = i + 1;
 
-            if !A::iter_predicate(entity, self.systems.storage, &self.view) {
+            if !self.group.is_some() && !A::iter_predicate(entity, self.systems.storage, &self.view) {
                 is_broken = true;
                 continue;
             }
@@ -188,7 +188,7 @@ where
             let entity = self.entities[i];
             self.next = i + 1;
 
-            if !A::iter_predicate(entity, self.systems.storage, &self.view) {
+            if !self.group.is_some() && !A::iter_predicate(entity, self.systems.storage, &self.view) {
                 is_broken = true;
                 continue;
             }

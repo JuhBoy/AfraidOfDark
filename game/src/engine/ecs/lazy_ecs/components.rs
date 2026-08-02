@@ -303,11 +303,22 @@ impl ComponentStorage {
         false
     }
 
-    pub fn get_storage_mut_by_id(&self, index: usize) -> AtomicRefMut<ComponentBufferSparseSet> {
+    pub unsafe fn get_storage_unchecked_mut(&self, index: usize) -> &mut ComponentBufferSparseSet {
+        &mut *self.storages[index].as_ptr()
+    }
+
+    pub unsafe fn get_storage_unchecked(&self, index: usize) -> &ComponentBufferSparseSet {
+        &*self.storages[index].as_ptr()
+    }
+
+    pub fn get_storage_mut_by_id(
+        &self,
+        index: usize,
+    ) -> AtomicRefMut<'_, ComponentBufferSparseSet> {
         self.storages[index].borrow_mut()
     }
 
-    pub fn get_storage_by_id(&self, index: usize) -> AtomicRef<ComponentBufferSparseSet> {
+    pub fn get_storage_by_id(&self, index: usize) -> AtomicRef<'_, ComponentBufferSparseSet> {
         self.storages[index].borrow()
     }
 
@@ -350,7 +361,12 @@ impl ComponentStorage {
         self.storages_index_by_type_id[&component_type_id]
     }
 
-    pub fn ungroup(&mut self, entity: Entity, input_group: GroupMask, archetypes: &mut ArchetypesManager) -> bool {
+    pub fn ungroup(
+        &mut self,
+        entity: Entity,
+        input_group: GroupMask,
+        archetypes: &mut ArchetypesManager,
+    ) -> bool {
         let groups_option = archetypes.get_supersets(&input_group, MatchType::Partial);
         let mut ungrouped: bool = false;
 
