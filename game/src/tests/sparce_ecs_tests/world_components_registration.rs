@@ -2,7 +2,9 @@ use crate::{
     engine::ecs::lazy_ecs::{
         archetypes::ComponentData, ecs::EntityCreateResult, entities::Entity,
         resources::LazyResourceTrait, systems::Query,
-    }, make_lazy_resources, make_lazy_resources_impl, tests::sparce_ecs_tests::ecs_test_helpers::{A, AData, B, PlayerLife, PlayerMana, create_ecs},
+    },
+    make_lazy_resources, make_lazy_resources_impl,
+    tests::sparce_ecs_tests::ecs_test_helpers::{create_ecs, AData, PlayerLife, PlayerMana, A, B},
 };
 
 // Verifies that a newly constructed world contains no entities.
@@ -93,6 +95,9 @@ pub fn mutable_query_can_access_and_modify_resource() {
     });
     ecs.resource_container_mut().try_allocate(PlayerMana(240));
 
+    for i in 0..1000 {
+        ecs.create::<(AData, B)>((AData(i), B {}));
+    }
 
     let mut resources = ecs.resource_container_mut();
     let mut prev = resources.get::<PlayerLife>().value - 1;
@@ -102,11 +107,13 @@ pub fn mutable_query_can_access_and_modify_resource() {
     for (_e, a_comp) in query.iter_mut() {
         let player_life: &mut PlayerLife = resources.get_mut::<PlayerLife>();
         a_comp.0 = player_life.value;
-        player_life.value += prev;
+        player_life.value += 1;
     }
 
     for (_e, a_comp) in query.iter() {
         assert_eq!(prev, a_comp.0 - 1);
         prev += 1;
     }
+
+    assert_eq!(1000, query.iter().count());
 }
